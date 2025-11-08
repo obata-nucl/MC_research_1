@@ -3,7 +3,6 @@ import yaml
 from pathlib import Path
 
 def load_config():
-    """ Load config.yml """
     root_dir = Path(__file__).resolve().parent.parent
     config_path = root_dir / "config.yml"
     try:
