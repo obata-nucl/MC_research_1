@@ -1,0 +1,22 @@
+# -----------------
+# 1. project paths
+# -----------------
+
+paths:
+  data_dir: "data/"
+  raw_dir: "data/raw/"
+  processed_dir: "data/processed/"
+  model_dir: "models/"
+  results_dir: "results/"
+
+# -----------------
+# 2. info about nuclei data
+# -----------------
+nuclei:
+  p_min: 62
+  p_max: 62
+  p_step: 2
+  n_min: 86
+  n_max: 96
+  n_step: 2
+  magic_numbers: [2, 8, 20, 28, 50, 82, 126]
