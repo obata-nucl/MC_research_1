@@ -114,6 +114,16 @@ def _make_split_indices(X: torch.Tensor,
     idx_val = torch.tensor(idx_val, dtype=torch.long)
     return idx_train, idx_val
 
+def minmax_scaler(X: torch.Tensor):
+    min_x = X.min(dim=0, keepdim=True).values
+    max_x = X.max(dim=0, keepdim=True).values
+    range_x = max_x - min_x
+    range_x = torch.where(range_x == 0, torch.ones_like(range_x), range_x)
+    return min_x, range_x
+
+def apply_minmax_scaler(X: torch.Tensor, min_x: torch.Tensor, max_x: torch.Tensor) -> torch.Tensor:
+    return (X - min_x) / (max_x - min_x)
+
 def main():
     raw_data = load_raw_data(
         CONFIG["nuclei"]["p_min"],
