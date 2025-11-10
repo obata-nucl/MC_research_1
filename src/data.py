@@ -1,4 +1,3 @@
-import yaml
 import numpy as np
 
 from utils import load_config
