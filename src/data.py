@@ -28,7 +28,7 @@ def prepare_training_dataset(raw_dict: dict[int, np.ndarray]) -> tuple[np.ndarra
     """ generate training dataset X, Y from raw_dict(N -> array[[beta, E(beta)], ...])
     
     X: (num_samples, 3) = [N, N_nu, beta]
-    Y: (num_samples, 1) = E(beta)
+    Y: (num_samples, ) = E(beta) - E(beta=0)
     """
     X_rows: list[list[float]] = []
     Y_vals: list[float] = []
@@ -40,10 +40,19 @@ def prepare_training_dataset(raw_dict: dict[int, np.ndarray]) -> tuple[np.ndarra
             continue
         n_nu = get_n_nu(int(n))
         beta_arr = arr[:, 0]
-        HFB_energies = arr[:, 1]
-        for beta, energy in zip(beta_arr, HFB_energies):
-            X_rows.append([float(n), float(n_nu), float(beta)])
-            Y_vals.append(float(energy))
+        energies = arr[:, 1]
+        # beta = 0 is 
+        idx_beta0 = np.where(np.isclose(beta_arr, 0.0))[0]
+        if idx_beta0.size == 0:
+            raise ValueError(f"No beta=0 point for N={n}")
+        e0 = energies[idx_beta0[0]]
+        energies -= e0
+        n_arr = np.full_like(beta_arr, n)
+        n_nu_arr = np.full_like(beta_arr, n_nu)
+        X_rows_np = np.stack([n_arr, n_nu_arr, beta_arr], axis=1)
+        X_rows.extend(X_rows_np.tolist())
+        Y_vals.extend(energies.tolist())
+
     X = np.array(X_rows)
     Y = np.array(Y_vals)
     return X, Y
@@ -69,7 +78,7 @@ def save_processed_data(X: np.ndarray, Y: np.ndarray, basename: str) -> dict:
             writer = csv.writer(f)
             writer.writerow(["N", "n_nu", "beta", "E"])  # header
             for (n, nn, b), e in zip(X, Y):
-                writer.writerow([int(n), int(nn), float(b), float(e)])
+                writer.writerow([int(n), int(nn), float(b), f"{float(e):.3f}"])
         paths["csv"] = csv_path
     except Exception as e:
         print(f"[WARN] Failed to write CSV: {e}")
