@@ -62,12 +62,8 @@ def train_worker(args):
         cooldown=0,
         min_lr=1e-6,
     )
-    try:
-        pattern_name = _pattern_to_name(hidden_dims)
-    except:
-        pattern_name = str(hidden_dims)
-    loss_dir = CONFIG["paths"]["results_dir"] / "training" / pattern_name
-    # create run directory (per pattern)
+
+    loss_dir = CONFIG["paths"]["results_dir"] / "training" / _pattern_to_name(hidden_dims)
     loss_dir.mkdir(parents=True, exist_ok=True)
     loss_path = loss_dir / "loss.csv"
     with open(loss_path, mode='w', newline='') as f:
@@ -113,7 +109,7 @@ def train_worker(args):
             current_lr = optimizer.param_groups[0]["lr"]
             with open(loss_path, mode='a', newline='') as f:
                 writer_csv = csv.writer(f)
-                writer_csv.writerow([epoch + 1, f"{train_loss:.8f}", f"{val_loss:.8f}", f"{math.sqrt(train_loss):.8f}", f"{math.sqrt(val_loss):.8f}", f"{current_lr:.6g}"])
+                writer_csv.writerow([epoch + 1, f"{train_loss:.8f}", f"{val_loss:.8f}", f"{math.sqrt(max(train_loss, 0.0)):.8f}", f"{math.sqrt(max(val_loss, 0.0)):.8f}", f"{current_lr:.6g}"])
 
             # Early stopping (best checkpoint)
             if val_loss + 1e-12 < best_val_loss:
@@ -132,7 +128,7 @@ def run_training():
     X, Y = load_processed_data()
     idx_train, idx_val = _make_split_indices(X, val_ratio=CONFIG["training"]["val_ratio"], seed=CONFIG["training"]["seed"])
 
-    x_min, x_range = minmax_scaler(X)
+    x_min, x_range = minmax_scaler(X[idx_train])
     X_scaled = apply_minmax_scaler(X, x_min, x_range)
     try:
         X.share_memory_()
@@ -166,3 +162,21 @@ def run_training():
         pool.map(train_worker, args_lst)
     
     print("Training completed for all patterns")
+
+def main():
+    _set_seed(CONFIG["training"]["seed"])
+    torch.set_num_threads(1)          # 行列・畳み込みなどのintra-op並列
+    torch.set_num_interop_threads(1)  # operator間の並列
+    try:
+        mp_torch.set_sharing_strategy('file_system')
+    except Exception:
+        pass
+
+    try:
+        mp.set_start_method("spawn", force=True)
+    except RuntimeError:
+        pass
+    run_training()
+
+if __name__ == "__main__":
+    main()
