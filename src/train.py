@@ -134,7 +134,7 @@ def train_worker(args):
 
 def run_training():
     X, Y = load_processed_data()
-    idx_train, idx_val = _make_split_indices(X, val_ratio=CONFIG["training"]["val_ratio"], seed=CONFIG["training"]["seed"])
+    idx_train, idx_val = _make_split_indices(X, val_ratio=CONFIG["training"]["val_ratio"], seed=CONFIG["training"]["base_seed"])
 
     x_min, x_range = minmax_scaler(X[idx_train])
     X_scaled = apply_minmax_scaler(X, x_min, x_range)
