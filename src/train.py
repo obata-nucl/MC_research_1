@@ -172,7 +172,7 @@ def run_training():
     print("Training completed for all patterns")
 
 def main():
-    _set_seed(CONFIG["training"]["seed"])
+    _set_seed(CONFIG["training"]["base_seed"])
     torch.set_num_threads(1)          # 行列・畳み込みなどのintra-op並列
     torch.set_num_interop_threads(1)  # operator間の並列
     try:
