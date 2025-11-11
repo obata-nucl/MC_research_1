@@ -11,7 +11,7 @@ from data import _make_split_indices, load_processed_data, minmax_scaler, apply_
 from losses import loss_fn
 from model import NN
 from pathlib import Path
-from torch.utils.data import TensorDataset, DataLoader
+from torch.utils.data import TensorDataset, DataLoader, Subset
 from utils import load_config, get_all_patterns, _pattern_to_name
 
 CONFIG = load_config()
@@ -33,10 +33,9 @@ def train_worker(args):
     _set_seed(base_seed + process_id)
     print(f"Process {process_id} Training start. Pattern: {hidden_dims}")
 
-    X_train, X_scaled_train, Y_train = X[idx_train], X_scaled[idx_train], Y[idx_train]
-    X_val, X_scaled_val, Y_val = X[idx_val], X_scaled[idx_val], Y[idx_val]
-
-    training_dataset = TensorDataset(X_train, X_scaled_train, Y_train)
+    # Build a base dataset once and create lightweight Subsets for train/val
+    base_dataset = TensorDataset(X, X_scaled, Y)
+    training_dataset = Subset(base_dataset, idx_train.tolist())
     g = torch.Generator()
     g.manual_seed(base_seed + process_id)
     train_loader = DataLoader(
@@ -46,8 +45,9 @@ def train_worker(args):
         num_workers=0,
         generator=g,
     )
+    val_dataset = Subset(base_dataset, idx_val.tolist())
     val_loader = DataLoader(
-        TensorDataset(X_val, X_scaled_val, Y_val),
+        val_dataset,
         batch_size=CONFIG["training"]["batch_size"],
         shuffle=False,
         num_workers=0,
