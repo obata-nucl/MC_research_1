@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import math
 
 class NN(nn.Module):
     def __init__(self, input_dim: int, hidden_dim: list[int], output_dim: int):
