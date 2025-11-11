@@ -67,63 +67,70 @@ def train_worker(args):
     loss_dir = CONFIG["paths"]["results_dir"] / "training" / _pattern_to_name(hidden_dims)
     loss_dir.mkdir(parents=True, exist_ok=True)
     loss_path = loss_dir / "loss.csv"
-    with open(loss_path, mode='w', newline='') as f:
-        writer_csv = csv.writer(f)
-        writer_csv.writerow(["epoch", "train_MSE", "val_MSE", "train_RMSE", "val_RMSE", "lr"])
-    
+
     best_val_loss = float("inf")
     no_improve = 0
     num_epochs = CONFIG["training"]["num_epochs"]
     early_patience = CONFIG["training"]["early_stopping_patience"]
-    try:
-        for epoch in range(num_epochs):
-            model.train()
-            train_loss_sum = 0.0
-            num_train_samples = 0
-            for batch_X, batch_X_scaled, batch_Y in train_loader:
-                optimizer.zero_grad()
-                outputs = model(batch_X_scaled)
-                train_loss = loss_fn(outputs, 6, batch_X[:, 1], batch_X[:, 2], batch_Y)
-                train_loss.backward()
-                optimizer.step()
-                bs = batch_X.size(0)
-                train_loss_sum += train_loss.item() * bs
-                num_train_samples += bs
 
-            train_loss = train_loss_sum / max(1, num_train_samples)
-
-            model.eval()
-            val_loss_sum = 0.0
-            num_val_samples = 0
-            with torch.no_grad():
-                for batch_X, batch_X_scaled, batch_Y in val_loader:
+    with open(loss_path, mode='w', newline='') as f:
+        writer_csv = csv.writer(f)
+        writer_csv.writerow(["epoch", "train_MSE", "val_MSE", "train_RMSE", "val_RMSE", "lr"])
+        try:
+            for epoch in range(num_epochs):
+                model.train()
+                train_loss_sum = 0.0
+                num_train_samples = 0
+                for batch_X, batch_X_scaled, batch_Y in train_loader:
+                    optimizer.zero_grad()
                     outputs = model(batch_X_scaled)
-                    val_loss = loss_fn(outputs, 6, batch_X[:, 1], batch_X[:, 2], batch_Y)
+                    train_loss = loss_fn(outputs, 6, batch_X[:, 1], batch_X[:, 2], batch_Y)
+                    train_loss.backward()
+                    optimizer.step()
                     bs = batch_X.size(0)
-                    val_loss_sum += val_loss.item() * bs
-                    num_val_samples += bs
-            val_loss = val_loss_sum / max(1, num_val_samples)
+                    train_loss_sum += train_loss.item() * bs
+                    num_train_samples += bs
 
-            scheduler.step(val_loss)
+                train_loss = train_loss_sum / max(1, num_train_samples)
 
-            # Logging
-            current_lr = optimizer.param_groups[0]["lr"]
-            with open(loss_path, mode='a', newline='') as f:
-                writer_csv = csv.writer(f)
-                writer_csv.writerow([epoch + 1, f"{train_loss:.8f}", f"{val_loss:.8f}", f"{math.sqrt(max(train_loss, 0.0)):.8f}", f"{math.sqrt(max(val_loss, 0.0)):.8f}", f"{current_lr:.6g}"])
+                model.eval()
+                val_loss_sum = 0.0
+                num_val_samples = 0
+                with torch.no_grad():
+                    for batch_X, batch_X_scaled, batch_Y in val_loader:
+                        outputs = model(batch_X_scaled)
+                        val_loss = loss_fn(outputs, 6, batch_X[:, 1], batch_X[:, 2], batch_Y)
+                        bs = batch_X.size(0)
+                        val_loss_sum += val_loss.item() * bs
+                        num_val_samples += bs
+                val_loss = val_loss_sum / max(1, num_val_samples)
 
-            # Early stopping (best checkpoint)
-            if val_loss + 1e-12 < best_val_loss:
-                best_val_loss = val_loss
-                no_improve = 0
-                torch.save(model.state_dict(), loss_dir / "best_model.pth")
-            else:
-                no_improve += 1
-                if no_improve >= early_patience:
-                    print(f"Process {process_id} Early stopping at epoch {epoch + 1}")
-                    break
-    except Exception as e:
-        print(f"[ERROR] Training failed: {e}")
+                scheduler.step(val_loss)
+
+                # Logging
+                current_lr = optimizer.param_groups[0]["lr"]
+                writer_csv.writerow([
+                    epoch + 1,
+                    f"{train_loss:.8f}",
+                    f"{val_loss:.8f}",
+                    f"{math.sqrt(max(train_loss, 0.0)):.8f}",
+                    f"{math.sqrt(max(val_loss, 0.0)):.8f}",
+                    f"{current_lr:.6g}",
+                ])
+                f.flush()
+
+                # Early stopping
+                if val_loss + 1e-12 < best_val_loss:
+                    best_val_loss = val_loss
+                    no_improve = 0
+                    torch.save(model.state_dict(), loss_dir / "best_model.pth")
+                else:
+                    no_improve += 1
+                    if no_improve >= early_patience:
+                        print(f"Process {process_id} Early stopping at epoch {epoch + 1}")
+                        break
+        except Exception as e:
+            print(f"[ERROR] Training failed: {e}")
 
 def run_training():
     X, Y = load_processed_data()
