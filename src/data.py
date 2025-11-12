@@ -1,11 +1,12 @@
 import numpy as np
 import torch
 
-from utils import load_config
+from utils import load_config, load_scaler
 
 CONFIG = load_config()
+SCALER = load_scaler(CONFIG)
 
-def load_raw_data(p_min: int, p_max: int, n_min: int, n_max: int, p_step: int, n_step: int) -> dict[int, np.ndarray]:
+def load_raw_data(p_min: int, p_max: int, n_min: int, n_max: int, p_step: int, n_step: int) -> dict[tuple[int, int], np.ndarray]:
     raw_dir = CONFIG["paths"]["raw_dir"]
     data = {}
     for p in range(p_min, p_max + 1, p_step):
@@ -57,8 +58,8 @@ def prepare_training_dataset(raw_dict: dict[int, np.ndarray]) -> tuple[np.ndarra
     Y = np.array(Y_vals)
     return X, Y
 
-def save_processed_data(X: np.ndarray, Y: np.ndarray, basename: str) -> dict:
-    """ save processed data X, Y to .npy and .csv files, return paths """
+def save_training_dataset(X: np.ndarray, Y: np.ndarray, basename: str = "training_dataset") -> dict:
+    """ save training data X, Y to .npy and .csv files, return paths """
     processed_dir = CONFIG["paths"]["processed_dir"]
     processed_dir.mkdir(parents=True, exist_ok=True)
 
@@ -70,25 +71,25 @@ def save_processed_data(X: np.ndarray, Y: np.ndarray, basename: str) -> dict:
     paths["X"] = x_path
     paths["Y"] = y_path
 
-    # for convenience of inspection / visualization, also save as CSV
+    # also save as CSV for convenience
     csv_path = processed_dir / f"{basename}.csv"
     try:
         import csv
         with open(csv_path, "w", newline="") as f:
             writer = csv.writer(f)
             writer.writerow(["N", "n_nu", "beta", "E"])  # header
-            for (n, nn, b), e in zip(X, Y):
-                writer.writerow([int(n), int(nn), float(b), f"{float(e):.3f}"])
+            for (n, n_nu, beta), energy in zip(X, Y):
+                writer.writerow([int(n), int(n_nu), float(beta), f"{float(energy):.3f}"])
         paths["csv"] = csv_path
     except Exception as e:
         print(f"[WARN] Failed to write CSV: {e}")
     return paths
 
-def load_processed_data():
+def load_training_dataset() -> tuple[torch.Tensor, torch.Tensor]:
     """ load processed data X, Y from .npy files """
     processed_dir = CONFIG["paths"]["processed_dir"]
-    x_path = processed_dir / "training_data_X.npy"
-    y_path = processed_dir / "training_data_Y.npy"
+    x_path = processed_dir / "training_dataset_X.npy"
+    y_path = processed_dir / "training_dataset_Y.npy"
     X = torch.from_numpy(np.load(x_path)).float()
     Y = torch.from_numpy(np.load(y_path)).float()
     return X, Y
@@ -133,6 +134,61 @@ def minmax_scaler(X: torch.Tensor):
 def apply_minmax_scaler(X: torch.Tensor, min_x: torch.Tensor, range_x: torch.Tensor) -> torch.Tensor:
     return (X - min_x) / range_x
 
+
+
+def prepare_eval_dataset(raw_data: dict[tuple[int, int], np.ndarray]) -> np.ndarray:
+    """ prepare eval dataset by finding beta min from raw data """
+    X_rows: list[list[float]] = []
+    for (p, n), arr in raw_data.items():
+        if arr is None:
+            continue
+        if arr.ndim != 2 or arr.shape[1] < 2:
+            print(f"[WARN] Skipped N={n} : expected 2 columns [beta,E], got shape {arr.shape}")
+            continue
+        n_nu = get_n_nu(int(n))
+        beta_arr = arr[:, 0]
+        energies = arr[:, 1]
+
+        idx_beta_min = np.argmin(energies)
+        beta_min = beta_arr[idx_beta_min]
+        X_rows.append([n, n_nu, beta_min])
+    return np.array(X_rows)
+
+def save_eval_dataset(X_eval: np.ndarray, basename: str) -> dict:
+    """ save eval dataset to .npy and csv files, return paths """
+    processed_dir = CONFIG["paths"]["processed_dir"]
+    processed_dir.mkdir(parents=True, exist_ok=True)
+
+    paths = {}
+    npy_path = processed_dir / f"{basename}.npy"
+    np.save(npy_path, X_eval)
+    paths["npy"] = npy_path
+
+    # also save as CSV for convenience
+    csv_path = processed_dir / f"{basename}.csv"
+    try:
+        import csv
+        with open(csv_path, "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(["N", "n_nu", "beta_min"])  # header
+            for n, n_nu, beta_min in X_eval:
+                writer.writerow([int(n), int(n_nu), float(beta_min)])
+        paths["csv"] = csv_path
+    except Exception as e:
+        print(f"[WARN] Failed to write eval inputs CSV: {e}")
+    return paths
+
+def load_eval_dataset(basename: str) -> tuple[torch.Tensor, torch.Tensor]:
+    """ load eval dataset from .npy file """
+    processed_dir = CONFIG["paths"]["processed_dir"]
+    npy_path = processed_dir / f"{basename}.npy"
+    X_eval = torch.from_numpy(np.load(npy_path)).float()
+    X_eval_scaled = apply_minmax_scaler(X_eval, SCALER["min"], SCALER["range"])
+
+    return X_eval, X_eval_scaled
+
+
+
 def main():
     raw_data = load_raw_data(
         CONFIG["nuclei"]["p_min"],
@@ -143,8 +199,11 @@ def main():
         CONFIG["nuclei"]["n_step"],
     )
     X, Y = prepare_training_dataset(raw_data)
-    saved_paths = save_processed_data(X, Y, "training_data")
-    print(f"Processed data saved: {saved_paths}")
+    saved_paths = save_training_dataset(X, Y, "training_dataset")
+    print(f"Training data saved: {saved_paths}")
+    X_eval = prepare_eval_dataset(raw_data)
+    eval_paths = save_eval_dataset(X_eval, "eval_dataset")
+    print(f"Eval data saved: {eval_paths}")
 
 if __name__ == "__main__":
     main()

@@ -3,10 +3,11 @@
 # -----------------
 
 paths:
-  data_dir: "data/"
-  raw_dir: "data/raw/"
-  processed_dir: "data/processed/"
-  results_dir: "results/"
+  data_dir: "dataset/"
+  raw_dir: "dataset/raw/"
+  processed_dir: "dataset/processed/"
+  results_dir: "dataset/results/"
+  NPBOS_dir: "NPBOS/"
 
 # -----------------
 # 2. info about nuclei data
@@ -21,7 +22,7 @@ nuclei:
   magic_numbers: [2, 8, 20, 28, 50, 82, 126]
 
 # -----------------
-# 3. NN model parameters
+# 3. NN model settings
 # -----------------
 nn:
   input_dim: 3
