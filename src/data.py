@@ -85,7 +85,7 @@ def save_training_dataset(X: np.ndarray, Y: np.ndarray, basename: str = "trainin
         print(f"[WARN] Failed to write CSV: {e}")
     return paths
 
-def load_training_dataset():
+def load_training_dataset() -> tuple[torch.Tensor, torch.Tensor]:
     """ load processed data X, Y from .npy files """
     processed_dir = CONFIG["paths"]["processed_dir"]
     x_path = processed_dir / "training_dataset_X.npy"
