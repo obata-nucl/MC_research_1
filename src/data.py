@@ -6,7 +6,7 @@ from utils import load_config, load_scaler
 CONFIG = load_config()
 SCALER = load_scaler(CONFIG)
 
-def load_raw_data(p_min: int, p_max: int, n_min: int, n_max: int, p_step: int, n_step: int) -> dict[tuple[int, int], np.ndarray]:
+def load_raw_HFB_energies(p_min: int, p_max: int, n_min: int, n_max: int, p_step: int, n_step: int) -> dict[tuple[int, int], np.ndarray]:
     raw_dir = CONFIG["paths"]["raw_dir"]
     data = {}
     for p in range(p_min, p_max + 1, p_step):
@@ -18,12 +18,77 @@ def load_raw_data(p_min: int, p_max: int, n_min: int, n_max: int, p_step: int, n
             except Exception as e:
                 print(f"Error loading data for N = {n} from {file_path}: {e}")
                 data[(p, n)] = None
-
     return data
+
+def load_raw_expt_spectra(p_min: int, p_max: int, n_min: int, n_max: int, p_step: int) -> dict[tuple[int, int], np.ndarray]:
+    """ load experimental spectra from expt.csv file """
+    raw_dir = CONFIG["paths"]["raw_dir"]
+    spectra: dict[tuple[int, int], np.ndarray] = {}
+
+    for p in range(p_min, p_max + 1, p_step):
+        file_dir = raw_dir / str(p)
+        file_path = file_dir / "expt.csv"
+        try:
+            arr = np.loadtxt(file_path, delimiter=',', skiprows=1)
+        except Exception as e:
+            print(f"[WARN] Failed to load expt.csv for Z={p} at {file_path}: {e}")
+            continue
+
+        n_arr = arr[:, 0].astype(int)
+        mask = (n_arr >= n_min) & (n_arr <= n_max)
+        rows = arr[mask]
+        ns = n_arr[mask]
+        for i, n in enumerate(ns):
+            key = (p, int(n))
+            spectra[key] = rows[i, 1:]
+
+    return spectra
 
 def get_n_nu(n: int) -> int:
     closest_magic = min(CONFIG["nuclei"]["magic_numbers"], key=lambda x: abs(n - x))
     return abs(n - closest_magic) // 2
+
+def _make_split_indices(X: torch.Tensor,
+                        val_ratio: float,
+                        seed: int) -> tuple:
+    """ make train/val split indices """
+    rng = np.random.default_rng(seed)
+
+    neutrons = X[:, 0].detach().cpu().numpy().astype(int)
+    unique_n = np.unique(neutrons)
+
+    idx_train: list[int] = []
+    idx_val: list[int] = []
+
+    for n in unique_n:
+        group_idx = np.where(neutrons == n)[0]
+        group_size = group_idx.size
+        if group_size == 0:
+            continue
+        rng.shuffle(group_idx)
+
+        raw_val_count = int(round(group_size * val_ratio))
+        val_count = max(0, min(group_size - 1, raw_val_count))
+
+        if val_count > 0:
+            idx_val.extend(group_idx[:val_count].tolist())
+        idx_train.extend(group_idx[val_count:].tolist())
+
+    idx_train = torch.tensor(idx_train, dtype=torch.long)
+    idx_val = torch.tensor(idx_val, dtype=torch.long)
+    return idx_train, idx_val
+
+def minmax_scaler(X: torch.Tensor):
+    min_x = X.min(dim=0, keepdim=True).values
+    max_x = X.max(dim=0, keepdim=True).values
+    range_x = max_x - min_x
+    range_x = torch.where(range_x == 0, torch.ones_like(range_x), range_x)
+    return min_x, range_x
+
+def apply_minmax_scaler(X: torch.Tensor, min_x: torch.Tensor, range_x: torch.Tensor) -> torch.Tensor:
+    return (X - min_x) / range_x
+
+
 
 def prepare_training_dataset(raw_dict: dict[int, np.ndarray]) -> tuple[np.ndarray, np.ndarray]:
     """ generate training dataset X, Y from raw_dict(N -> array[[beta, E(beta)], ...])
@@ -94,46 +159,6 @@ def load_training_dataset() -> tuple[torch.Tensor, torch.Tensor]:
     Y = torch.from_numpy(np.load(y_path)).float()
     return X, Y
 
-def _make_split_indices(X: torch.Tensor,
-                        val_ratio: float,
-                        seed: int) -> tuple:
-    """ make train/val split indices """
-    rng = np.random.default_rng(seed)
-
-    neutrons = X[:, 0].detach().cpu().numpy().astype(int)
-    unique_n = np.unique(neutrons)
-
-    idx_train: list[int] = []
-    idx_val: list[int] = []
-
-    for n in unique_n:
-        group_idx = np.where(neutrons == n)[0]
-        group_size = group_idx.size
-        if group_size == 0:
-            continue
-        rng.shuffle(group_idx)
-
-        raw_val_count = int(round(group_size * val_ratio))
-        val_count = max(0, min(group_size - 1, raw_val_count))
-
-        if val_count > 0:
-            idx_val.extend(group_idx[:val_count].tolist())
-        idx_train.extend(group_idx[val_count:].tolist())
-
-    idx_train = torch.tensor(idx_train, dtype=torch.long)
-    idx_val = torch.tensor(idx_val, dtype=torch.long)
-    return idx_train, idx_val
-
-def minmax_scaler(X: torch.Tensor):
-    min_x = X.min(dim=0, keepdim=True).values
-    max_x = X.max(dim=0, keepdim=True).values
-    range_x = max_x - min_x
-    range_x = torch.where(range_x == 0, torch.ones_like(range_x), range_x)
-    return min_x, range_x
-
-def apply_minmax_scaler(X: torch.Tensor, min_x: torch.Tensor, range_x: torch.Tensor) -> torch.Tensor:
-    return (X - min_x) / range_x
-
 
 
 def prepare_eval_dataset(raw_data: dict[tuple[int, int], np.ndarray]) -> np.ndarray:
@@ -184,13 +209,12 @@ def load_eval_dataset(basename: str) -> tuple[torch.Tensor, torch.Tensor]:
     npy_path = processed_dir / f"{basename}.npy"
     X_eval = torch.from_numpy(np.load(npy_path)).float()
     X_eval_scaled = apply_minmax_scaler(X_eval, SCALER["min"], SCALER["range"])
-
     return X_eval, X_eval_scaled
 
 
 
 def main():
-    raw_data = load_raw_data(
+    raw_data = load_raw_HFB_energies(
         CONFIG["nuclei"]["p_min"],
         CONFIG["nuclei"]["p_max"],
         CONFIG["nuclei"]["n_min"],

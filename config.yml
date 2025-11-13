@@ -6,7 +6,8 @@ paths:
   data_dir: "dataset/"
   raw_dir: "dataset/raw/"
   processed_dir: "dataset/processed/"
-  results_dir: "dataset/results/"
+  results_dir: "results/"
+  src_dir: "src/"
   NPBOS_dir: "NPBOS/"
 
 # -----------------

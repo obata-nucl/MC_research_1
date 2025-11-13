@@ -47,7 +47,7 @@ while read LINE; do
         elif [ "$LINE_SUB" = "6  +  ( 1)" ] ; then
             first_6=$(echo "$LINE" | cut -c23-28)
         elif [ "$LINE_SUB" = "0  +  ( 2)" ] ; then
-            second_0=$(echo "$LINE" | cut -23-28)
+            second_0=$(echo "$LINE" | cut -c23-28)
         fi
     fi
 done < "$FILE"
