@@ -6,7 +6,7 @@ from utils import load_config, load_scaler
 CONFIG = load_config()
 SCALER = load_scaler(CONFIG)
 
-def load_raw_data(p_min: int, p_max: int, n_min: int, n_max: int, p_step: int, n_step: int) -> dict[tuple[int, int], np.ndarray]:
+def load_raw_HFB_energies(p_min: int, p_max: int, n_min: int, n_max: int, p_step: int, n_step: int) -> dict[tuple[int, int], np.ndarray]:
     raw_dir = CONFIG["paths"]["raw_dir"]
     data = {}
     for p in range(p_min, p_max + 1, p_step):
@@ -192,7 +192,7 @@ def load_eval_dataset(basename: str) -> tuple[torch.Tensor, torch.Tensor]:
 
 
 def main():
-    raw_data = load_raw_data(
+    raw_data = load_raw_HFB_energies(
         CONFIG["nuclei"]["p_min"],
         CONFIG["nuclei"]["p_max"],
         CONFIG["nuclei"]["n_min"],
