@@ -76,7 +76,7 @@ def evaluate_model(X_eval: torch.Tensor, X_eval_scaled: torch.Tensor, pattern: l
         
         pred_params = outputs.squeeze(0).numpy()
         sh_command = [
-            "bash", "eval.sh",
+            "bash", CONFIG["paths"]["src_dir"] / "eval.sh",
             str(CONFIG["paths"]["NPBOS_dir"]),
             str(int(n + 62)), str(int(n_nu)),
             [f"`{param:.3f}" for param in pred_params]
