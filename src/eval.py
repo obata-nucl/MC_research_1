@@ -69,7 +69,6 @@ def evaluate_model(X_eval: torch.Tensor, X_eval_scaled: torch.Tensor, pattern: l
         if expt_spectra_n.size == 0:
             print(f"No expt data found for N={n}")
             continue
-        expt_energies = expt_spectra_n[0, 1:5]
 
         with torch.no_grad():
             outputs = model(X_eval_scaled[i].unsqueeze(0))
@@ -92,12 +91,12 @@ def evaluate_model(X_eval: torch.Tensor, X_eval_scaled: torch.Tensor, pattern: l
             print(f"Error parsing output: {stdout} - {e}")
             continue
 
-        energy_sse, energy_count = calc_sse(pred_energies, expt_energies)
+        energy_sse, energy_count = calc_sse(pred_energies, expt_spectra_n)
         energy_RMSE += energy_sse
         energy_count_total += energy_count
         # ratio evaluation
-        if len(pred_energies) == len(expt_energies) and pred_energies[0] != 0 and expt_energies[0] != 0:
-            ratio_RMSE += ((pred_energies[1] / pred_energies[0]) - (expt_energies[1] / expt_energies[0])) ** 2
+        if len(pred_energies) == len(expt_spectra_n) and pred_energies[0] != 0 and expt_spectra_n[0] != 0:
+            ratio_RMSE += ((pred_energies[1] / pred_energies[0]) - (expt_spectra_n[1] / expt_spectra_n[0])) ** 2
             ratio_count += 1
     energy_RMSE = np.sqrt(energy_RMSE / energy_count_total) if energy_count_total > 0 else float('inf')
     ratio_RMSE = np.sqrt(ratio_RMSE / ratio_count) if ratio_count > 0 else float('inf')
