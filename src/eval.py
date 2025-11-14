@@ -5,10 +5,10 @@ import signal
 import subprocess
 import torch
 
-from data import load_eval_dataset, load_raw_expt_spectra
-from losses import calc_sse
-from model import load_NN_model
-from utils import load_config, get_all_patterns, _pattern_to_name, _parse_pattern_name
+from src.data import load_eval_dataset, load_raw_expt_spectra
+from src.losses import calc_sse
+from src.model import load_NN_model
+from src.utils import load_config, get_all_patterns, _pattern_to_name, _parse_pattern_name
 
 CONFIG = load_config()
 

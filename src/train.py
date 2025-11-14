@@ -7,11 +7,11 @@ import torch
 import torch.optim as optim
 import torch.multiprocessing as mp_torch
 
-from data import load_training_dataset, minmax_scaler, apply_minmax_scaler, _make_split_indices
-from losses import loss_fn
-from model import NN
+from src.data import load_training_dataset, minmax_scaler, apply_minmax_scaler, _make_split_indices
+from src.losses import loss_fn
+from src.model import NN
 from torch.utils.data import TensorDataset, DataLoader, Subset
-from utils import load_config, get_all_patterns, _pattern_to_name
+from src.utils import load_config, get_all_patterns, _pattern_to_name
 
 CONFIG = load_config()
 

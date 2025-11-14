@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 
-from utils import load_config, load_scaler
+from src.utils import load_config, load_scaler
 
 CONFIG = load_config()
 SCALER = load_scaler(CONFIG)

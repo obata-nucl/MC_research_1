@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from utils import load_config, _pattern_to_name
+from src.utils import load_config, _pattern_to_name
 
 CONFIG = load_config()
 
