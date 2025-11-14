@@ -186,7 +186,7 @@ def save_spectra_to_csv(pattern: list[int], X_eval: torch.Tensor, X_eval_scaled:
                 str(int(n + 62)), str(int(n_nu)),
                 *[f"{param:.3f}" for param in pred_params]
             ]
-            stdout, stderr, rc = run_npbos(sh_command)
+            stdout, _, rc = run_npbos(sh_command)
             if rc != 0:
                 print(f"timeout for N={n}, params = {pred_params}")
                 continue
