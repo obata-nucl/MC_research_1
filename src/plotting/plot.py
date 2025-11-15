@@ -8,10 +8,12 @@ from src.utils import load_config
 CONFIG = load_config()
 
 # eval_results = ["N", "E2+_1", "E4+_1", "E6+_1", "E0+_2", "R_4/2", "eps", "kappa", "chi_n"]
-# expt_spectra = ["N", "E2+_1", "E4+_1", "E6+_1", "E0+_2", "R_4/2"]
+# expt_spectra = {(p, n), np.ndarray}
 
-def plot_spectra(pred_data: np.ndarray, expt_data: np.ndarray, level_labels: list[str] = ["2+_1", "4+_1", "6+_1", "0+_2"], markers: list[str] = ['o', 's', '^', 'D']) -> plt.Figure:
+def plot_spectra(pred_data: np.ndarray, expt_data: dict[tuple[int, int], np.ndarray], level_labels: list[str] = ["2+_1", "4+_1", "6+_1", "0+_2"], markers: list[str] = ['o', 's', '^', 'D']) -> plt.Figure:
     fig, ax = plt.subplots(1, 2, figsize=(10, 6))
+    expt_keys = list(expt_data.keys())
+    expt_energies = np.array([expt_data[key] for key in expt_keys])
     ax[0].set_title("Theory", fontsize=16)
     ax[1].set_title("Expt.", fontsize=16)
     for a in ax:
@@ -21,16 +23,18 @@ def plot_spectra(pred_data: np.ndarray, expt_data: np.ndarray, level_labels: lis
         a.tick_params(axis="both", which="major", labelsize=12)
     for i in range(len(level_labels)):
         ax[0].plot(pred_data[:, 0].astype(int), pred_data[:, i + 1], marker=markers[i], label=level_labels[i])
-        ax[1].plot(expt_data[:, 0].astype(int), expt_data[:, i + 1], marker=markers[i], label=level_labels[i])
+        ax[1].plot([key[1] for key in expt_keys], expt_energies[:, i], marker=markers[i], label=level_labels[i])
     for a in ax:
         a.legend(loc="best", fontsize=12)
     plt.tight_layout()
     return fig
 
-def plot_ratio(pred_data: np.ndarray, expt_data: np.ndarray) -> plt.Figure:
+def plot_ratio(pred_data: np.ndarray, expt_data: dict[tuple[int, int], np.ndarray]) -> plt.Figure:
     fig, ax = plt.subplots(figsize=(8, 6))
+    expt_keys = list(expt_data.keys())
+    expt_ratios = np.array([expt_data[key][4] for key in expt_keys])
     ax.plot(pred_data[:, 0].astype(int), pred_data[:, 5], marker='D', color="#2A23F3", linewidth=2.0, label="Theory Ratio")
-    ax.plot(expt_data[:, 0].astype(int), expt_data[:, 5], marker='D', color="#5C006EFF", linestyle="--", linewidth=1.8, label="Expt. Ratio")
+    ax.plot([key[1] for key in expt_keys], expt_ratios, marker='D', color="#5C006EFF", linestyle="--", linewidth=1.8, label="Expt. Ratio")
     ax.set_title("E(4+)/E(2+) Ratio", fontsize=16)
     ax.set_ylim(1.0, 4.0)
     ax.set_xlabel("Neutron Number", fontsize=14)
@@ -46,6 +50,7 @@ def plot_params(pred_data: np.ndarray, labels: dict[str, str] = {"eps": r"$\vare
     for i, param_name in enumerate(labels.keys()):
         ax = axes[i]
         ax.plot(pred_data[:, 0].astype(int), pred_data[:, i + 6], linestyle='-', color="black", marker='o')
+        ax.set_title(labels[param_name], fontsize=16)
         ax.set_ylim(lims[param_name])
         ax.grid(True, alpha=0.3)
         ax.tick_params(axis="both", labelsize=12)
