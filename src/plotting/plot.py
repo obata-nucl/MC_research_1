@@ -7,6 +7,9 @@ from src.utils import load_config
 
 CONFIG = load_config()
 
+# eval_results = ["N", "E2+_1", "E4+_1", "E6+_1", "E0+_2", "R_4/2", "eps", "kappa", "chi_n"]
+# expt_spectra = ["N", "E2+_1", "E4+_1", "E6+_1", "E0+_2", "R_4/2"]
+
 def plot_spectra(pred_data: np.ndarray, expt_data: np.ndarray, level_labels: list[str] = ["2+_1", "4+_1", "6+_1", "0+_2"], markers: list[str] = ['o', 's', '^', 'D']) -> plt.Figure:
     fig, ax = plt.subplots(1, 2, figsize=(10, 6))
     ax[0].set_title("Theory", fontsize=16)
@@ -55,4 +58,27 @@ def save_fig(fig: plt.Figure, pattern_name: str, filename: str) -> None:
     save_stem = save_dir / filename
     fig.savefig(f"{save_stem}.png", dpi=300, bbox_inches='tight')
     fig.savefig(f"{save_stem}.pdf", bbox_inches='tight')
+    plt.close(fig)
     return
+
+def main():
+    expt_data = load_raw_expt_spectra(
+        CONFIG["nuclei"]["p_min"],
+        CONFIG["nuclei"]["p_max"],
+        CONFIG["nuclei"]["n_min"],
+        CONFIG["nuclei"]["n_max"],
+        CONFIG["nuclei"]["p_step"]
+    )
+    for pattern_name, pred_data in load_eval_results().items():
+        fig_spectra = plot_spectra(pred_data, expt_data)
+        save_fig(fig_spectra, pattern_name, "spectra")
+
+        fig_ratio = plot_ratio(pred_data, expt_data)
+        save_fig(fig_ratio, pattern_name, "ratio")
+
+        fig_params = plot_params(pred_data)
+        save_fig(fig_params, pattern_name, "params")
+    return
+
+if __name__ == "__main__":
+    main()
