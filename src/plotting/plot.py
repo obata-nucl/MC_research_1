@@ -50,7 +50,7 @@ def plot_params(pred_data: np.ndarray, labels: dict[str, str] = {"eps": r"$\vare
     for i, param_name in enumerate(labels.keys()):
         ax = axes[i]
         ax.plot(pred_data[:, 0].astype(int), pred_data[:, i + 6], linestyle='-', color="black", marker='o')
-        ax.set_title(labels[param_name], fontsize=16)
+        ax.set_title(labels[param_name], fontsize=20)
         ax.set_ylim(lims[param_name])
         ax.grid(True, alpha=0.3)
         ax.tick_params(axis="both", labelsize=12)
