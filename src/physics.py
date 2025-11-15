@@ -1,7 +1,7 @@
 import math
 import torch
 
-def IBM2_PES(params: torch.Tensor, n_pi: int, n_nu: torch.Tensor, beta_f: torch.Tensor) -> torch.Tensor:
+def IBM2_PES(params: torch.Tensor, n_pi: torch.Tensor, n_nu: torch.Tensor, beta_f: torch.Tensor) -> torch.Tensor:
     """ Compute IBM2 potential energy surface (PES) """
     beta_b = beta_f*5.0
 
