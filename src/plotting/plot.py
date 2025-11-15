@@ -36,3 +36,4 @@ def plot_ratio(pred_spectra: np.ndarray, expt_spectra: np.ndarray) -> plt.Figure
     ax.legend(loc="best", fontsize=12)
     plt.tight_layout()
     return fig
+
