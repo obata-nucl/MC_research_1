@@ -5,7 +5,7 @@ from src.utils import load_config, _parse_pattern_name
 
 CONFIG = load_config()
 
-def load_eval_results(top_k: int = 5) -> list[list[int]]:
+def load_eval_summary(top_k: int = 5) -> list[list[int]]:
     """ load top-k evaluation reults from eval_summary.csv """
     load_dir = CONFIG["paths"]["results_dir"] / "evaluation"
     summary_path = load_dir / "eval_summary.csv"

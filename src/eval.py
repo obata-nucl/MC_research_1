@@ -8,7 +8,7 @@ import torch
 from src.data import load_eval_dataset, load_raw_expt_spectra
 from src.losses import calc_sse
 from src.model import load_NN_model
-from src.loader import load_eval_results
+from src.loader import load_eval_summary
 from src.utils import load_config, get_all_patterns, _pattern_to_name
 
 CONFIG = load_config()
@@ -195,7 +195,7 @@ def main():
     # patterns = get_all_patterns(CONFIG["nn"]["nodes_options"], CONFIG["nn"]["layers_options"])
     # save_rmse_to_csv(patterns, X_eval, X_eval_scaled, expt_spectra)
 
-    top_k_patterns = load_eval_results(top_k=5)
+    top_k_patterns = load_eval_summary(top_k=5)
     print(f"Top-{len(top_k_patterns)} patterns: {[ _pattern_to_name(p) for p in top_k_patterns ]}")
     for pattern in top_k_patterns:
         print(f"pattern: {_pattern_to_name(pattern)}")
