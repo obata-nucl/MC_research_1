@@ -8,7 +8,7 @@ import torch
 from src.data import load_eval_dataset, load_raw_expt_spectra
 from src.losses import calc_sse
 from src.model import load_NN_model
-from src.reader import load_eval_results
+from src.loader import load_eval_results
 from src.utils import load_config, get_all_patterns, _pattern_to_name
 
 CONFIG = load_config()
