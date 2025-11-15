@@ -48,3 +48,11 @@ def plot_params(pred_data: np.ndarray, labels: dict[str, str] = {"eps": r"$\vare
         ax.tick_params(axis="both", labelsize=12)
     fig.tight_layout()
     return fig
+
+def save_fig(fig: plt.Figure, pattern_name: str, filename: str) -> None:
+    save_dir = CONFIG["paths"]["results_dir"] / "images" / pattern_name
+    save_dir.mkdir(parents=True, exist_ok=True)
+    save_stem = save_dir / filename
+    fig.savefig(f"{save_stem}.png", dpi=300, bbox_inches='tight')
+    fig.savefig(f"{save_stem}.pdf", bbox_inches='tight')
+    return
