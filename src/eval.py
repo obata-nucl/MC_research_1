@@ -144,7 +144,7 @@ def save_rmse_to_csv(patterns: list[list[int]], X_eval: torch.Tensor, X_eval_sca
 def save_spectra_to_csv(pattern: list[int], X_eval: torch.Tensor, X_eval_scaled: torch.Tensor, max_attempts: int = 5) -> None:
     """ save predicted spectra and parameters to .csv file """
     model = load_NN_model(pattern)
-    result_dir = CONFIG["paths"]["results_dir"] /"evaluation"
+    result_dir = CONFIG["paths"]["results_dir"] / "evaluation"
     result_dir.mkdir(parents=True, exist_ok=True)
     save_path = result_dir / f"{_pattern_to_name(pattern)}.csv"
     import time
