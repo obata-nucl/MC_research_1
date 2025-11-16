@@ -8,7 +8,8 @@ import torch
 from src.data import load_eval_dataset, load_raw_expt_spectra
 from src.losses import calc_sse
 from src.model import load_NN_model
-from src.utils import load_config, get_all_patterns, _pattern_to_name, _parse_pattern_name
+from src.loader import load_eval_summary
+from src.utils import load_config, get_all_patterns, _pattern_to_name
 
 CONFIG = load_config()
 
@@ -114,7 +115,6 @@ def save_rmse_to_csv(patterns: list[list[int]], X_eval: torch.Tensor, X_eval_sca
                     "pattern": _pattern_to_name(pattern),
                     "energy_RMSE": energy_RMSE,
                     "ratio_RMSE": ratio_RMSE,
-                    "total_RMSE": energy_RMSE + ratio_RMSE,
                 }
             )
             calc_count += 1
@@ -123,57 +123,36 @@ def save_rmse_to_csv(patterns: list[list[int]], X_eval: torch.Tensor, X_eval_sca
         except Exception as e:
             print(f"Error evaluating pattern {pattern}: {e}")
             continue
-    eval_summary.sort(key=lambda x: x["total_RMSE"])
+    # Sort CSV lines by ratio_RMSE ascending as requested
+    eval_summary.sort(key=lambda x: x["ratio_RMSE"])
     summary_dir = CONFIG["paths"]["results_dir"] / "evaluation"
     summary_dir.mkdir(parents=True, exist_ok=True)
     summary_path = summary_dir / "eval_summary.csv"
     with open(summary_path, "w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["pattern", "energy_RMSE", "ratio_RMSE", "total_RMSE"])
+        writer.writerow(["pattern", "energy_RMSE", "ratio_RMSE"])
         for record in eval_summary:
             writer.writerow([
                 record["pattern"],
                 f"{record['energy_RMSE']:.6f}",
                 f"{record['ratio_RMSE']:.6f}",
-                f"{record['total_RMSE']:.6f}",
             ])
     return
 
 
 
-
-def load_eval_results(top_k: int = 5) -> list[list[int]]:
-    """ load top-k evaluation reults from eval_summary.csv """
-    load_dir = CONFIG["paths"]["results_dir"] / "evaluation"
-    summary_path = load_dir / "eval_summary.csv"
-    if not summary_path.exists():
-        raise FileNotFoundError(f"eval_summary.csv not found: {summary_path}")
-    patterns = []
-    with open(summary_path, "r", newline="") as f:
-        reader = csv.DictReader(f)
-        for r in reader:
-            name = r.get("pattern", "")
-            try:
-                rmse = float(r.get("total_RMSE", "inf"))
-            except ValueError:
-                continue
-            if not name or not np.isfinite(rmse):
-                continue
-            patterns.append(_parse_pattern_name(name))
-            if len(patterns) >= top_k:
-                break
-    return patterns
-
-def save_spectra_to_csv(pattern: list[int], X_eval: torch.Tensor, X_eval_scaled: torch.Tensor) -> None:
+def save_spectra_to_csv(pattern: list[int], X_eval: torch.Tensor, X_eval_scaled: torch.Tensor, max_attempts: int = 5) -> None:
     """ save predicted spectra and parameters to .csv file """
     model = load_NN_model(pattern)
     result_dir = CONFIG["paths"]["results_dir"] /"evaluation"
     result_dir.mkdir(parents=True, exist_ok=True)
     save_path = result_dir / f"{_pattern_to_name(pattern)}.csv"
-    with open(save_path, "w", newline="") as f:
-        writer = csv.writer(f)
-        header = ["N", "2+_1", "4+_1", "6+_1", "0+_2", "R_4/2", "eps", "kappa", "chi_n"]
-        writer.writerow(header)
+    import time
+    header = ["N", "2+_1", "4+_1", "6+_1", "0+_2", "R_4/2", "eps", "kappa", "chi_n"]
+    attempt = 1
+    while attempt <= max_attempts:
+        rows = []
+        failed = False
         for x_eval, x_eval_scaled in zip(X_eval, X_eval_scaled):
             n = int(x_eval[0].item())
             n_nu = int(x_eval[1].item())
@@ -188,19 +167,36 @@ def save_spectra_to_csv(pattern: list[int], X_eval: torch.Tensor, X_eval_scaled:
             ]
             stdout, _, rc = run_npbos(sh_command)
             if rc != 0:
-                print(f"timeout for N={n}, params = {pred_params}")
-                continue
+                print(f"timeout for N={n}, params = {pred_params} (attempt {attempt})")
+                failed = True
+                break
             try:
                 pred_energies = list(map(float, stdout.strip().split()))
             except ValueError as e:
-                print(f"Error parsing output: {stdout} - {e}")
-                continue
+                print(f"Error parsing output for N={n}: {stdout} - {e} (attempt {attempt})")
+                failed = True
+                break
 
             if len(pred_energies) == 4 and pred_energies[0] != 0:
                 ratio = pred_energies[1] / pred_energies[0]
-                print(pred_energies, ratio)
-                writer.writerow([n, *pred_energies, f"{ratio:.3f}", *[f"{param:.3f}" for param in pred_params]])
-        print("==========")
+                rows.append([n, *pred_energies, f"{ratio:.3f}", *[f"{param:.3f}" for param in pred_params]])
+        if not failed:
+            # All N succeeded for this pattern -> write CSV and exit loop
+            with open(save_path, "w", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow(header)
+                for row in rows:
+                    writer.writerow(row)
+            print(f"Saved spectra for pattern {_pattern_to_name(pattern)} (attempt {attempt})")
+            break
+        else:
+            if attempt < max_attempts:
+                print(f"Pattern {_pattern_to_name(pattern)}: attempt {attempt} failed; retrying...")
+                attempt += 1
+                time.sleep(min(1 * attempt, 3))
+            else:
+                print(f"Pattern {_pattern_to_name(pattern)}: failed after {max_attempts} attempts; skipping and continuing")
+                return
 
 
 
@@ -217,10 +213,15 @@ def main():
     # patterns = get_all_patterns(CONFIG["nn"]["nodes_options"], CONFIG["nn"]["layers_options"])
     # save_rmse_to_csv(patterns, X_eval, X_eval_scaled, expt_spectra)
 
-    top_k_patterns = load_eval_results(top_k=5)
-    print(f"Top-{len(top_k_patterns)} patterns: {[ _pattern_to_name(p) for p in top_k_patterns ]}")
-    for pattern in top_k_patterns:
-        print(f"pattern: {_pattern_to_name(pattern)}")
+    top_k_ratio, top_k_total = load_eval_summary(top_k=5)
+    print(f"Top-{len(top_k_ratio)} patterns by ratio_RMSE: {[ _pattern_to_name(p) for p in top_k_ratio ]}")
+    for pattern in top_k_ratio:
+        print(f"pattern (ratio): {_pattern_to_name(pattern)}")
+        save_spectra_to_csv(pattern, X_eval, X_eval_scaled)
+
+    print(f"Top-{len(top_k_total)} patterns by total_RMSE: {[ _pattern_to_name(p) for p in top_k_total ]}")
+    for pattern in top_k_total:
+        print(f"pattern (total): {_pattern_to_name(pattern)}")
         save_spectra_to_csv(pattern, X_eval, X_eval_scaled)
 
 if __name__ == "__main__":
