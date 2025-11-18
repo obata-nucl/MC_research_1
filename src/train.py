@@ -27,7 +27,7 @@ def _seed_worker(seed: int, worker_id: int):
     np.random.seed(worker_seed)
     random.seed(worker_seed)
 
-def train_worker(args):
+def _train_worker(args):
     input_dim, hidden_dims, output_dim, X, X_scaled, Y, idx_train, idx_val, process_id, base_seed = args
     _set_seed(base_seed + process_id)
     print(f"Process {process_id} Training start. Pattern: {hidden_dims}")
@@ -141,7 +141,7 @@ def train_worker(args):
         except Exception as e:
             print(f"[ERROR] Training failed: {e}")
 
-def run_training():
+def _run_training():
     X, Y = load_training_dataset()
     idx_train, idx_val = _make_split_indices(X, val_ratio=CONFIG["training"]["val_ratio"], seed=CONFIG["training"]["base_seed"])
 
@@ -176,7 +176,7 @@ def run_training():
     print(f"Starting training with {num_processes} processes")
     ctx = mp.get_context("spawn")
     with ctx.Pool(processes=num_processes) as pool:
-        pool.map(train_worker, args_lst)
+        pool.map(_train_worker, args_lst)
     
     print("Training completed for all patterns")
 
@@ -193,7 +193,7 @@ def main():
         mp.set_start_method("spawn", force=True)
     except RuntimeError:
         pass
-    run_training()
+    _run_training()
 
 if __name__ == "__main__":
     main()

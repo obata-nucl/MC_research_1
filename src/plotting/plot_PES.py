@@ -11,7 +11,7 @@ from src.utils import load_config
 
 CONFIG = load_config()
 
-def calc_PES(params: np.ndarray, n_pi: int, n_nu: int, beta_f_arr: np.ndarray) -> np.ndarray:
+def _calc_PES(params: np.ndarray, n_pi: int, n_nu: int, beta_f_arr: np.ndarray) -> np.ndarray:
     """ calculate PES for one nucleus with given N """
     params = np.asarray(params)
     beta_f_arr = np.asarray(beta_f_arr)
@@ -29,9 +29,9 @@ def calc_PES(params: np.ndarray, n_pi: int, n_nu: int, beta_f_arr: np.ndarray) -
     # pes_tensor shape is (1, nbeta) -> return 1D numpy array
     return pes_tensor.squeeze(0).numpy()
 
-def plot_n_PES(ax: plt.Axes, P:int, N: int, n_pi: int, n_nu: int, beta_f_arr: np.ndarray, params: np.ndarray, expt_PES: np.ndarray) -> plt.Axes:
+def _plot_n_PES(ax: plt.Axes, P:int, N: int, n_pi: int, n_nu: int, beta_f_arr: np.ndarray, params: np.ndarray, expt_PES: np.ndarray) -> plt.Axes:
     """ plot PES of one nucleus with given N """
-    pred_PES = calc_PES(params, 6, n_nu, beta_f_arr)
+    pred_PES = _calc_PES(params, 6, n_nu, beta_f_arr)
     ax.plot(beta_f_arr, pred_PES, linestyle='-', color="black", label="IBM PES")
 
     idx_min_calc = np.argmin(pred_PES)
@@ -41,7 +41,7 @@ def plot_n_PES(ax: plt.Axes, P:int, N: int, n_pi: int, n_nu: int, beta_f_arr: np
     idx_min_expt = np.argmin(expt_PES[:, 1])
     ax.plot(expt_PES[idx_min_expt, 0], expt_PES[idx_min_expt, 1], 'bo', markersize=6)
     mass_number = P + N
-    ax.set_title(rf"$^{mass_number}\mathrm{{Sm}}$", fontsize=18)
+    ax.set_title(rf"$^{{{mass_number}}}\mathrm{{Sm}}$", fontsize=18)
     ax.set_xlabel(r"$\beta$", fontsize=14)
     ax.set_ylabel("Energy [MeV]", fontsize=14)
     ax.tick_params(axis="both", which="major", labelsize=12)
@@ -76,7 +76,7 @@ def main():
             expt_PES_n[:, 1] -= e0
             ax = axes.ravel()[i]
             params = pred_data[i, 6:]
-            plot_n_PES(ax, Protons, n, 6, n_nu, beta_f_arr, params, expt_PES_n)
+            _plot_n_PES(ax, Protons, n, 6, n_nu, beta_f_arr, params, expt_PES_n)
         fig.tight_layout()
         save_fig(fig, pattern_name, "PES")
     return
