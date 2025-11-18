@@ -41,7 +41,7 @@ def _plot_n_PES(ax: plt.Axes, P:int, N: int, n_pi: int, n_nu: int, beta_f_arr: n
     idx_min_expt = np.argmin(expt_PES[:, 1])
     ax.plot(expt_PES[idx_min_expt, 0], expt_PES[idx_min_expt, 1], 'bo', markersize=6)
     mass_number = P + N
-    ax.set_title(rf"$^{mass_number}\mathrm{{Sm}}$", fontsize=18)
+    ax.set_title(rf"$^{{{mass_number}}}\mathrm{{Sm}}$", fontsize=18)
     ax.set_xlabel(r"$\beta$", fontsize=14)
     ax.set_ylabel("Energy [MeV]", fontsize=14)
     ax.tick_params(axis="both", which="major", labelsize=12)
