@@ -13,7 +13,7 @@ from src.utils import load_config, get_all_patterns, _pattern_to_name
 
 CONFIG = load_config()
 
-def run_npbos(command: list[str], timeout_sec: float=2.0) -> tuple[str, str, int]:
+def _run_npbos(command: list[str], timeout_sec: float=2.0) -> tuple[str, str, int]:
     """ run NPBOS programs and return IBM spectra as stdout, stderr, and return code """
     proc = None
     try:
@@ -51,7 +51,7 @@ def run_npbos(command: list[str], timeout_sec: float=2.0) -> tuple[str, str, int
             pass
         return ("", str(e), -1)
 
-def evaluate_model(X_eval: torch.Tensor, X_eval_scaled: torch.Tensor, pattern: list[int], expt_spectra: dict[tuple[int, int], np.ndarray]) -> tuple[float, float]:
+def _evaluate_model(X_eval: torch.Tensor, X_eval_scaled: torch.Tensor, pattern: list[int], expt_spectra: dict[tuple[int, int], np.ndarray]) -> tuple[float, float]:
     """ evaluate each pattern model """
     model = load_NN_model(pattern)
     if model is None:
@@ -82,7 +82,7 @@ def evaluate_model(X_eval: torch.Tensor, X_eval_scaled: torch.Tensor, pattern: l
             *[f"{param:.3f}" for param in pred_params]
         ]
 
-        stdout, stderr, rc = run_npbos(sh_command)
+        stdout, stderr, rc = _run_npbos(sh_command)
         if rc != 0:
             print(f"timeout for N={n}, params = {pred_params}")
             continue
@@ -103,13 +103,13 @@ def evaluate_model(X_eval: torch.Tensor, X_eval_scaled: torch.Tensor, pattern: l
     ratio_RMSE = np.sqrt(ratio_RMSE / ratio_count) if ratio_count > 0 else float('inf')
     return energy_RMSE, ratio_RMSE
 
-def save_rmse_to_csv(patterns: list[list[int]], X_eval: torch.Tensor, X_eval_scaled: torch.Tensor, expt_spectra: dict[tuple[int, int], np.ndarray]) -> None:
+def _save_rmse_to_csv(patterns: list[list[int]], X_eval: torch.Tensor, X_eval_scaled: torch.Tensor, expt_spectra: dict[tuple[int, int], np.ndarray]) -> None:
     """ save RMSE results to .csv file """
     eval_summary = []
     calc_count = 0
     for pattern in patterns:
         try:
-            energy_RMSE, ratio_RMSE = evaluate_model(X_eval, X_eval_scaled, pattern, expt_spectra)
+            energy_RMSE, ratio_RMSE = _evaluate_model(X_eval, X_eval_scaled, pattern, expt_spectra)
             eval_summary.append(
                 {
                     "pattern": _pattern_to_name(pattern),
@@ -141,7 +141,7 @@ def save_rmse_to_csv(patterns: list[list[int]], X_eval: torch.Tensor, X_eval_sca
 
 
 
-def save_spectra_to_csv(pattern: list[int], X_eval: torch.Tensor, X_eval_scaled: torch.Tensor, max_attempts: int = 5) -> None:
+def _save_spectra_to_csv(pattern: list[int], X_eval: torch.Tensor, X_eval_scaled: torch.Tensor, max_attempts: int = 5) -> None:
     """ save predicted spectra and parameters to .csv file """
     model = load_NN_model(pattern)
     result_dir = CONFIG["paths"]["results_dir"] / "evaluation"
@@ -165,7 +165,7 @@ def save_spectra_to_csv(pattern: list[int], X_eval: torch.Tensor, X_eval_scaled:
                 str(int(n + 62)), str(int(n_nu)),
                 *[f"{param:.3f}" for param in pred_params]
             ]
-            stdout, _, rc = run_npbos(sh_command)
+            stdout, _, rc = _run_npbos(sh_command)
             if rc != 0:
                 print(f"timeout for N={n}, params = {pred_params} (attempt {attempt})")
                 failed = True
@@ -211,18 +211,18 @@ def main():
     #     CONFIG["nuclei"]["p_step"],
     # )
     # patterns = get_all_patterns(CONFIG["nn"]["nodes_options"], CONFIG["nn"]["layers_options"])
-    # save_rmse_to_csv(patterns, X_eval, X_eval_scaled, expt_spectra)
+    # _save_rmse_to_csv(patterns, X_eval, X_eval_scaled, expt_spectra)
 
     top_k_ratio, top_k_total = load_eval_summary(top_k=5)
     print(f"Top-{len(top_k_ratio)} patterns by ratio_RMSE: {[ _pattern_to_name(p) for p in top_k_ratio ]}")
     for pattern in top_k_ratio:
         print(f"pattern (ratio): {_pattern_to_name(pattern)}")
-        save_spectra_to_csv(pattern, X_eval, X_eval_scaled)
+        _save_spectra_to_csv(pattern, X_eval, X_eval_scaled)
 
     print(f"Top-{len(top_k_total)} patterns by total_RMSE: {[ _pattern_to_name(p) for p in top_k_total ]}")
     for pattern in top_k_total:
         print(f"pattern (total): {_pattern_to_name(pattern)}")
-        save_spectra_to_csv(pattern, X_eval, X_eval_scaled)
+        _save_spectra_to_csv(pattern, X_eval, X_eval_scaled)
 
 if __name__ == "__main__":
     main()

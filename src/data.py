@@ -90,7 +90,7 @@ def apply_minmax_scaler(X: torch.Tensor, min_x: torch.Tensor, range_x: torch.Ten
 
 
 
-def prepare_training_dataset(raw_dict: dict[int, np.ndarray]) -> tuple[np.ndarray, np.ndarray]:
+def _prepare_training_dataset(raw_dict: dict[int, np.ndarray]) -> tuple[np.ndarray, np.ndarray]:
     """ generate training dataset X, Y from raw_dict(N -> array[[beta, E(beta)], ...])
     
     X: (num_samples, 3) = [N, N_nu, beta]
@@ -123,7 +123,7 @@ def prepare_training_dataset(raw_dict: dict[int, np.ndarray]) -> tuple[np.ndarra
     Y = np.array(Y_vals)
     return X, Y
 
-def save_training_dataset(X: np.ndarray, Y: np.ndarray, basename: str = "training_dataset") -> dict:
+def _save_training_dataset(X: np.ndarray, Y: np.ndarray, basename: str = "training_dataset") -> dict:
     """ save training data X, Y to .npy and .csv files, return paths """
     processed_dir = CONFIG["paths"]["processed_dir"]
     processed_dir.mkdir(parents=True, exist_ok=True)
@@ -161,7 +161,7 @@ def load_training_dataset() -> tuple[torch.Tensor, torch.Tensor]:
 
 
 
-def prepare_eval_dataset(raw_data: dict[tuple[int, int], np.ndarray]) -> np.ndarray:
+def _prepare_eval_dataset(raw_data: dict[tuple[int, int], np.ndarray]) -> np.ndarray:
     """ prepare eval dataset by finding beta min from raw data """
     X_rows: list[list[float]] = []
     for (p, n), arr in raw_data.items():
@@ -179,7 +179,7 @@ def prepare_eval_dataset(raw_data: dict[tuple[int, int], np.ndarray]) -> np.ndar
         X_rows.append([n, n_nu, beta_min])
     return np.array(X_rows)
 
-def save_eval_dataset(X_eval: np.ndarray, basename: str) -> dict:
+def _save_eval_dataset(X_eval: np.ndarray, basename: str) -> dict:
     """ save eval dataset to .npy and csv files, return paths """
     processed_dir = CONFIG["paths"]["processed_dir"]
     processed_dir.mkdir(parents=True, exist_ok=True)
@@ -222,11 +222,11 @@ def main():
         CONFIG["nuclei"]["p_step"],
         CONFIG["nuclei"]["n_step"],
     )
-    X, Y = prepare_training_dataset(raw_data)
-    saved_paths = save_training_dataset(X, Y, "training_dataset")
+    X, Y = _prepare_training_dataset(raw_data)
+    saved_paths = _save_training_dataset(X, Y, "training_dataset")
     print(f"Training data saved: {saved_paths}")
-    X_eval = prepare_eval_dataset(raw_data)
-    eval_paths = save_eval_dataset(X_eval, "eval_dataset")
+    X_eval = _prepare_eval_dataset(raw_data)
+    eval_paths = _save_eval_dataset(X_eval, "eval_dataset")
     print(f"Eval data saved: {eval_paths}")
 
 if __name__ == "__main__":

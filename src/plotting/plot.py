@@ -10,7 +10,7 @@ CONFIG = load_config()
 # eval_results = ["N", "E2+_1", "E4+_1", "E6+_1", "E0+_2", "R_4/2", "eps", "kappa", "chi_n"]
 # expt_spectra = {(p, n), np.ndarray}
 
-def plot_spectra(pred_data: np.ndarray, expt_data: dict[tuple[int, int], np.ndarray], level_labels: list[str] = ["2+_1", "4+_1", "6+_1", "0+_2"], markers: list[str] = ['o', 's', '^', 'D']) -> plt.Figure:
+def _plot_spectra(pred_data: np.ndarray, expt_data: dict[tuple[int, int], np.ndarray], level_labels: list[str] = ["2+_1", "4+_1", "6+_1", "0+_2"], markers: list[str] = ['o', 's', '^', 'D']) -> plt.Figure:
     fig, ax = plt.subplots(1, 2, figsize=(10, 6))
     expt_keys = list(expt_data.keys())
     expt_energies = np.array([expt_data[key] for key in expt_keys])
@@ -29,7 +29,7 @@ def plot_spectra(pred_data: np.ndarray, expt_data: dict[tuple[int, int], np.ndar
     plt.tight_layout()
     return fig
 
-def plot_ratio(pred_data: np.ndarray, expt_data: dict[tuple[int, int], np.ndarray]) -> plt.Figure:
+def _plot_ratio(pred_data: np.ndarray, expt_data: dict[tuple[int, int], np.ndarray]) -> plt.Figure:
     fig, ax = plt.subplots(figsize=(8, 6))
     expt_keys = list(expt_data.keys())
     expt_ratios = np.array([expt_data[key][4] for key in expt_keys])
@@ -44,7 +44,7 @@ def plot_ratio(pred_data: np.ndarray, expt_data: dict[tuple[int, int], np.ndarra
     plt.tight_layout()
     return fig
 
-def plot_params(pred_data: np.ndarray, labels: dict[str, str] = {"eps": r"$\varepsilon$", "kappa": r"$\kappa$", "chi_n": r"$\chi_\nu$"}, lims: dict[str, tuple[float, float]] = {"eps": [0, 1.5], "kappa": [-0.5, 0], "chi_n": [-2.0, 0]}) -> plt.Figure:
+def _plot_params(pred_data: np.ndarray, labels: dict[str, str] = {"eps": r"$\varepsilon$", "kappa": r"$\kappa$", "chi_n": r"$\chi_\nu$"}, lims: dict[str, tuple[float, float]] = {"eps": [0, 1.5], "kappa": [-0.5, 0], "chi_n": [-2.0, 0]}) -> plt.Figure:
     fig, axes = plt.subplots(1, len(labels), figsize=(5*len(labels), 5))
 
     for i, param_name in enumerate(labels.keys()):
@@ -75,13 +75,13 @@ def main():
         CONFIG["nuclei"]["p_step"]
     )
     for pattern_name, pred_data in load_eval_results().items():
-        fig_spectra = plot_spectra(pred_data, expt_data)
+        fig_spectra = _plot_spectra(pred_data, expt_data)
         save_fig(fig_spectra, pattern_name, "spectra")
 
-        fig_ratio = plot_ratio(pred_data, expt_data)
+        fig_ratio = _plot_ratio(pred_data, expt_data)
         save_fig(fig_ratio, pattern_name, "ratio")
 
-        fig_params = plot_params(pred_data)
+        fig_params = _plot_params(pred_data)
         save_fig(fig_params, pattern_name, "params")
     return
 
