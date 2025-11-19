@@ -2,6 +2,7 @@ from __future__ import annotations
 import matplotlib.pyplot as plt
 import numpy as np
 
+from pathlib import Path
 from src.data import load_raw_expt_spectra
 from src.loader import load_eval_results
 from src.utils import load_config
@@ -58,8 +59,9 @@ def _plot_params(pred_data: np.ndarray, labels: dict[str, str] = {"eps": r"$\var
     fig.tight_layout()
     return fig
 
-def save_fig(fig: plt.Figure, pattern_name: str, filename: str) -> None:
-    save_dir = CONFIG["paths"]["results_dir"] / "images" / pattern_name
+def save_fig(fig: plt.Figure, pattern_name: str, filename: str, save_dir: Path = None) -> None:
+    if save_dir is None:
+        save_dir = CONFIG["paths"]["results_dir"] / "images" / pattern_name
     save_dir.mkdir(parents=True, exist_ok=True)
     save_stem = save_dir / filename
     fig.savefig(f"{save_stem}.png", dpi=300, bbox_inches='tight')
