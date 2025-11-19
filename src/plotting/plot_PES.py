@@ -79,7 +79,7 @@ def main():
             params = pred_data[i, 6:]
             _plot_n_PES(ax, Protons, n, 6, n_nu, beta_f_arr, params, expt_PES_n)
         fig.tight_layout()
-        save_fig(fig, pattern_name, "PES")
+        save_fig(fig, "PES", CONFIG["paths"]["results_dir"] / "images" / pattern_name)
     return
 
 if __name__ == "__main__":

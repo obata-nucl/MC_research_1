@@ -4,6 +4,7 @@ import numpy as np
 
 from pathlib import Path
 from src.utils import load_config
+from src.plotting.plot import save_fig
 
 CONFIG = load_config()
 
@@ -56,11 +57,11 @@ def _plot_learning_curve(data: np.ndarray, title: str) -> plt.Figure:
 
 
 def main():
-    results_dir = CONFIG["paths"]["results_dir"] / "training"
+    results_training_dir = CONFIG["paths"]["results_dir"] / "training"
 
-    pattern_dirs = sorted(d for d in results_dir.iterdir() if d.is_dir())
+    pattern_dirs = sorted(d for d in results_training_dir.iterdir() if d.is_dir())
     if not pattern_dirs:
-        print(f"No pattern directories under {results_dir}")
+        print(f"No pattern directories under {results_training_dir}")
         return
 
     for pattern_dir in pattern_dirs:
@@ -77,13 +78,7 @@ def main():
 
         fig = _plot_learning_curve(data, pattern_dir.name)
 
-        png_path = pattern_dir / "learning_curve.png"
-        pdf_path = pattern_dir / "learning_curve.pdf"
-
-        fig.savefig(png_path, dpi=300, bbox_inches="tight")
-        fig.savefig(pdf_path, bbox_inches="tight")
-        plt.close(fig)
-        print(f"Saved learning curves to {pattern_dir}")
+        save_fig(fig, "learning_curve", pattern_dir)
     return
 
 if __name__ == "__main__":
