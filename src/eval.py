@@ -208,15 +208,15 @@ def _sort_by(data: pd.DataFrame, key: str) -> pd.DataFrame:
 def main():
     X_eval, X_eval_scaled = load_eval_dataset("eval_dataset")
 
-    # expt_spectra = load_raw_expt_spectra(
-    #     CONFIG["nuclei"]["p_min"],
-    #     CONFIG["nuclei"]["p_max"],
-    #     CONFIG["nuclei"]["n_min"],
-    #     CONFIG["nuclei"]["n_max"],
-    #     CONFIG["nuclei"]["p_step"],
-    # )
-    # patterns = get_all_patterns(CONFIG["nn"]["nodes_options"], CONFIG["nn"]["layers_options"])
-    # _save_rmse_to_csv(patterns, X_eval, X_eval_scaled, expt_spectra)
+    expt_spectra = load_raw_expt_spectra(
+        CONFIG["nuclei"]["p_min"],
+        CONFIG["nuclei"]["p_max"],
+        CONFIG["nuclei"]["n_min"],
+        CONFIG["nuclei"]["n_max"],
+        CONFIG["nuclei"]["p_step"],
+    )
+    patterns = get_all_patterns(CONFIG["nn"]["nodes_options"], CONFIG["nn"]["layers_options"])
+    _save_rmse_to_csv(patterns, X_eval, X_eval_scaled, expt_spectra)
 
     eval_summary = load_eval_summary()
     top5_ratio = _sort_by(eval_summary, "ratio_RMSE").head(5)
