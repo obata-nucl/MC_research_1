@@ -1,6 +1,8 @@
+from __future__ import annotations
 import csv
 import numpy as np
 import os
+import pandas as pd
 import signal
 import subprocess
 import torch
@@ -9,7 +11,7 @@ from src.data import load_eval_dataset, load_raw_expt_spectra
 from src.losses import calc_sse
 from src.model import load_NN_model
 from src.loader import load_eval_summary
-from src.utils import load_config, get_all_patterns, _pattern_to_name
+from src.utils import load_config, get_all_patterns, _pattern_to_name, _parse_pattern_name
 
 CONFIG = load_config()
 
@@ -198,31 +200,36 @@ def _save_spectra_to_csv(pattern: list[int], X_eval: torch.Tensor, X_eval_scaled
                 print(f"Pattern {_pattern_to_name(pattern)}: failed after {max_attempts} attempts; skipping and continuing")
                 return
 
+def _sort_by(data: pd.DataFrame, key: str) -> pd.DataFrame:
+    """ sort DataFrame by given key column """
+    return data.sort_values(by=key)
 
 
 def main():
     X_eval, X_eval_scaled = load_eval_dataset("eval_dataset")
 
-    # expt_spectra = load_raw_expt_spectra(
-    #     CONFIG["nuclei"]["p_min"],
-    #     CONFIG["nuclei"]["p_max"],
-    #     CONFIG["nuclei"]["n_min"],
-    #     CONFIG["nuclei"]["n_max"],
-    #     CONFIG["nuclei"]["p_step"],
-    # )
-    # patterns = get_all_patterns(CONFIG["nn"]["nodes_options"], CONFIG["nn"]["layers_options"])
-    # _save_rmse_to_csv(patterns, X_eval, X_eval_scaled, expt_spectra)
+    expt_spectra = load_raw_expt_spectra(
+        CONFIG["nuclei"]["p_min"],
+        CONFIG["nuclei"]["p_max"],
+        CONFIG["nuclei"]["n_min"],
+        CONFIG["nuclei"]["n_max"],
+        CONFIG["nuclei"]["p_step"],
+    )
+    patterns = get_all_patterns(CONFIG["nn"]["nodes_options"], CONFIG["nn"]["layers_options"])
+    _save_rmse_to_csv(patterns, X_eval, X_eval_scaled, expt_spectra)
 
-    top_k_ratio, top_k_total = load_eval_summary(top_k=5)
-    print(f"Top-{len(top_k_ratio)} patterns by ratio_RMSE: {[ _pattern_to_name(p) for p in top_k_ratio ]}")
-    for pattern in top_k_ratio:
-        print(f"pattern (ratio): {_pattern_to_name(pattern)}")
-        _save_spectra_to_csv(pattern, X_eval, X_eval_scaled)
-
-    print(f"Top-{len(top_k_total)} patterns by total_RMSE: {[ _pattern_to_name(p) for p in top_k_total ]}")
-    for pattern in top_k_total:
-        print(f"pattern (total): {_pattern_to_name(pattern)}")
-        _save_spectra_to_csv(pattern, X_eval, X_eval_scaled)
+    eval_summary = load_eval_summary()
+    top5_ratio = _sort_by(eval_summary, "ratio_RMSE").head(5)
+    top5_total = _sort_by(eval_summary, "total_RMSE").head(5)
+    print(f"Top-5 patterns by ratio_RMSE")
+    for pattern in top5_ratio["pattern"]:
+        print(f"pattern (ratio): {pattern}")
+        _save_spectra_to_csv(_parse_pattern_name(pattern), X_eval, X_eval_scaled)
+    
+    print(f"Top-5 patterns by total_RMSE")
+    for pattern in top5_total["pattern"]:
+        print(f"pattern (total): {pattern}")
+        _save_spectra_to_csv(_parse_pattern_name(pattern), X_eval, X_eval_scaled)
 
 if __name__ == "__main__":
     main()

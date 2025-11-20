@@ -1,6 +1,8 @@
+from __future__ import annotations
 import matplotlib.pyplot as plt
 import numpy as np
 
+from pathlib import Path
 from src.data import load_raw_expt_spectra
 from src.loader import load_eval_results
 from src.utils import load_config
@@ -57,8 +59,7 @@ def _plot_params(pred_data: np.ndarray, labels: dict[str, str] = {"eps": r"$\var
     fig.tight_layout()
     return fig
 
-def save_fig(fig: plt.Figure, pattern_name: str, filename: str) -> None:
-    save_dir = CONFIG["paths"]["results_dir"] / "images" / pattern_name
+def save_fig(fig: plt.Figure, filename: str, save_dir: Path = None) -> None:
     save_dir.mkdir(parents=True, exist_ok=True)
     save_stem = save_dir / filename
     fig.savefig(f"{save_stem}.png", dpi=300, bbox_inches='tight')
@@ -76,13 +77,13 @@ def main():
     )
     for pattern_name, pred_data in load_eval_results().items():
         fig_spectra = _plot_spectra(pred_data, expt_data)
-        save_fig(fig_spectra, pattern_name, "spectra")
+        save_fig(fig_spectra, "spectra", CONFIG["paths"]["results_dir"] / "images" / pattern_name)
 
         fig_ratio = _plot_ratio(pred_data, expt_data)
-        save_fig(fig_ratio, pattern_name, "ratio")
+        save_fig(fig_ratio, "ratio", CONFIG["paths"]["results_dir"] / "images" / pattern_name)
 
         fig_params = _plot_params(pred_data)
-        save_fig(fig_params, pattern_name, "params")
+        save_fig(fig_params, "params", CONFIG["paths"]["results_dir"] / "images" / pattern_name)
     return
 
 if __name__ == "__main__":
