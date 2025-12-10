@@ -84,9 +84,10 @@ def _train_worker(args):
                     optimizer.zero_grad()
                     outputs = model(batch_X_scaled)
                     # Make n_pi, n_nu, beta shapes explicit: (batch, 1)
-                    n_pi_tensor = batch_X[:, 1].unsqueeze(1).new_full((batch_X.size(0), 1), float(6))
-                    n_nu_tensor = batch_X[:, 1].unsqueeze(1)
-                    beta_tensor = batch_X[:, 2].unsqueeze(1)
+                    # batch_X is [n_nu, beta]
+                    n_pi_tensor = batch_X[:, 0].unsqueeze(1).new_full((batch_X.size(0), 1), float(6))
+                    n_nu_tensor = batch_X[:, 0].unsqueeze(1)
+                    beta_tensor = batch_X[:, 1].unsqueeze(1)
                     y_tensor = batch_Y.unsqueeze(1)
                     train_loss = loss_fn(outputs, n_pi_tensor, n_nu_tensor, beta_tensor, y_tensor)
                     train_loss.backward()
@@ -104,9 +105,9 @@ def _train_worker(args):
                     for batch_X, batch_X_scaled, batch_Y in val_loader:
                         outputs = model(batch_X_scaled)
                         # validation: same tensor shapes as training
-                        n_pi_tensor = batch_X[:, 1].unsqueeze(1).new_full((batch_X.size(0), 1), float(6))
-                        n_nu_tensor = batch_X[:, 1].unsqueeze(1)
-                        beta_tensor = batch_X[:, 2].unsqueeze(1)
+                        n_pi_tensor = batch_X[:, 0].unsqueeze(1).new_full((batch_X.size(0), 1), float(6))
+                        n_nu_tensor = batch_X[:, 0].unsqueeze(1)
+                        beta_tensor = batch_X[:, 1].unsqueeze(1)
                         y_tensor = batch_Y.unsqueeze(1)
                         val_loss = loss_fn(outputs, n_pi_tensor, n_nu_tensor, beta_tensor, y_tensor)
                         bs = batch_X.size(0)

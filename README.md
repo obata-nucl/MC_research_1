@@ -86,7 +86,7 @@ nn:
   output_dim: 3
   ...
 training:
-  batch_size: 64
+  batch_size: 32
   num_epochs: 500
   ...
 ```
