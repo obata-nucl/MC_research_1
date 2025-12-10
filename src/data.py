@@ -5,7 +5,7 @@ import torch
 from src.utils import load_config, load_scaler
 
 CONFIG = load_config()
-SCALER = load_scaler(CONFIG)
+# SCALER = load_scaler(CONFIG)  <-- Removed global load to avoid FileNotFoundError during training setup
 
 def load_raw_HFB_energies(p_min: int, p_max: int, n_min: int, n_max: int, p_step: int, n_step: int) -> dict[tuple[int, int], np.ndarray]:
     raw_dir = CONFIG["paths"]["raw_dir"]
@@ -15,7 +15,7 @@ def load_raw_HFB_energies(p_min: int, p_max: int, n_min: int, n_max: int, p_step
         for n in range(n_min, n_max + 1, n_step):
             file_path = file_dir / f"{n}.csv"
             try:
-                data[(p, n)] = np.loadtxt(file_path, delimiter=',')
+                data[(p, n)] = np.loadtxt(file_path, delimiter=',', skiprows=1)
             except Exception as e:
                 print(f"Error loading data for N = {n} from {file_path}: {e}")
                 data[(p, n)] = None
@@ -55,14 +55,15 @@ def _make_split_indices(X: torch.Tensor,
     """ make train/val split indices """
     rng = np.random.default_rng(seed)
 
-    neutrons = X[:, 0].detach().cpu().numpy().astype(int)
-    unique_n = np.unique(neutrons)
+    # X[:, 0] is n_nu (was N)
+    group_ids = X[:, 0].detach().cpu().numpy().astype(int)
+    unique_ids = np.unique(group_ids)
 
     idx_train: list[int] = []
     idx_val: list[int] = []
 
-    for n in unique_n:
-        group_idx = np.where(neutrons == n)[0]
+    for gid in unique_ids:
+        group_idx = np.where(group_ids == gid)[0]
         group_size = group_idx.size
         if group_size == 0:
             continue
@@ -114,9 +115,8 @@ def _prepare_training_dataset(raw_dict: dict[int, np.ndarray]) -> tuple[np.ndarr
             raise ValueError(f"No beta=0 point for N={n}")
         e0 = energies[idx_beta0[0]]
         energies -= e0
-        n_arr = np.full_like(beta_arr, n)
         n_nu_arr = np.full_like(beta_arr, n_nu)
-        X_rows_np = np.stack([n_arr, n_nu_arr, beta_arr], axis=1)
+        X_rows_np = np.stack([n_nu_arr, beta_arr], axis=1)
         X_rows.extend(X_rows_np.tolist())
         Y_vals.extend(energies.tolist())
 
@@ -143,9 +143,9 @@ def _save_training_dataset(X: np.ndarray, Y: np.ndarray, basename: str = "traini
         import csv
         with open(csv_path, "w", newline="") as f:
             writer = csv.writer(f)
-            writer.writerow(["N", "n_nu", "beta", "E"])  # header
-            for (n, n_nu, beta), energy in zip(X, Y):
-                writer.writerow([int(n), int(n_nu), float(beta), f"{float(energy):.3f}"])
+            writer.writerow(["n_nu", "beta", "E"])  # header
+            for (n_nu, beta), energy in zip(X, Y):
+                writer.writerow([int(n_nu), float(beta), f"{float(energy):.3f}"])
         paths["csv"] = csv_path
     except Exception as e:
         print(f"[WARN] Failed to write CSV: {e}")
@@ -209,7 +209,13 @@ def load_eval_dataset(basename: str) -> tuple[torch.Tensor, torch.Tensor]:
     processed_dir = CONFIG["paths"]["processed_dir"]
     npy_path = processed_dir / f"{basename}.npy"
     X_eval = torch.from_numpy(np.load(npy_path)).float()
-    X_eval_scaled = apply_minmax_scaler(X_eval, SCALER["min"], SCALER["range"])
+    
+    # Load scaler locally to avoid import-time error
+    scaler = load_scaler(CONFIG)
+    
+    # X_eval has [N, n_nu, beta_min], but model expects [n_nu, beta]
+    X_features = X_eval[:, 1:]
+    X_eval_scaled = apply_minmax_scaler(X_features, scaler["min"], scaler["range"])
     return X_eval, X_eval_scaled
 
 

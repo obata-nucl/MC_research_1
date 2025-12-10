@@ -204,6 +204,29 @@ def _sort_by(data: pd.DataFrame, key: str) -> pd.DataFrame:
     """ sort DataFrame by given key column """
     return data.sort_values(by=key)
 
+def find_best_training_model(patterns: list[list[int]]) -> tuple[list[int], float]:
+    """ find the pattern with the minimum validation RMSE from training logs """
+    best_pattern = None
+    min_val_rmse = float('inf')
+    
+    for pattern in patterns:
+        pattern_name = _pattern_to_name(pattern)
+        loss_path = CONFIG["paths"]["results_dir"] / "training" / pattern_name / "loss.csv"
+        if not loss_path.exists():
+            continue
+        try:
+            df = pd.read_csv(loss_path)
+            if "val_RMSE" not in df.columns:
+                continue
+            # Get the minimum val_RMSE recorded during training
+            val_rmse = df["val_RMSE"].min()
+            if val_rmse < min_val_rmse:
+                min_val_rmse = val_rmse
+                best_pattern = pattern
+        except Exception:
+            continue
+            
+    return best_pattern, min_val_rmse
 
 def main():
     X_eval, X_eval_scaled = load_eval_dataset("eval_dataset")
@@ -216,20 +239,48 @@ def main():
         CONFIG["nuclei"]["p_step"],
     )
     patterns = get_all_patterns(CONFIG["nn"]["nodes_options"], CONFIG["nn"]["layers_options"])
+    
+    print("Evaluating all models...")
     _save_rmse_to_csv(patterns, X_eval, X_eval_scaled, expt_spectra)
 
     eval_summary = load_eval_summary()
-    top5_ratio = _sort_by(eval_summary, "ratio_RMSE").head(5)
-    top5_total = _sort_by(eval_summary, "total_RMSE").head(5)
-    print(f"Top-5 patterns by ratio_RMSE")
-    for pattern in top5_ratio["pattern"]:
-        print(f"pattern (ratio): {pattern}")
-        _save_spectra_to_csv(_parse_pattern_name(pattern), X_eval, X_eval_scaled)
     
-    print(f"Top-5 patterns by total_RMSE")
-    for pattern in top5_total["pattern"]:
-        print(f"pattern (total): {pattern}")
-        _save_spectra_to_csv(_parse_pattern_name(pattern), X_eval, X_eval_scaled)
+    # NPBOS best 2 models (Energy RMSE & Ratio RMSE)
+    best_energy_row = eval_summary.loc[eval_summary["energy_RMSE"].idxmin()]
+    best_ratio_row = eval_summary.loc[eval_summary["ratio_RMSE"].idxmin()]
+    
+    pattern_energy_best = _parse_pattern_name(best_energy_row["pattern"])
+    pattern_ratio_best = _parse_pattern_name(best_ratio_row["pattern"])
+    
+    print(f"Best NPBOS Energy RMSE: {best_energy_row['pattern']} (RMSE={best_energy_row['energy_RMSE']})")
+    print(f"Best NPBOS Ratio RMSE: {best_ratio_row['pattern']} (RMSE={best_ratio_row['ratio_RMSE']})")
+
+    # PES Training best model
+    pattern_train_best, train_rmse = find_best_training_model(patterns)
+    if pattern_train_best:
+        print(f"Best PES Training RMSE: {_pattern_to_name(pattern_train_best)} (RMSE={train_rmse})")
+    else:
+        print("No training logs found to determine best PES model.")
+
+    # Save spectra for these models
+    target_patterns = []
+    if pattern_train_best:
+        target_patterns.append(pattern_train_best)
+    target_patterns.append(pattern_energy_best)
+    target_patterns.append(pattern_ratio_best)
+    
+    # Remove duplicates
+    unique_patterns = []
+    seen = set()
+    for p in target_patterns:
+        name = _pattern_to_name(p)
+        if name not in seen:
+            unique_patterns.append(p)
+            seen.add(name)
+            
+    for pattern in unique_patterns:
+        print(f"Saving spectra for pattern: {_pattern_to_name(pattern)}")
+        _save_spectra_to_csv(pattern, X_eval, X_eval_scaled)
 
 if __name__ == "__main__":
     main()
