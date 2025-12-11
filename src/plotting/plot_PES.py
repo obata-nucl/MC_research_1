@@ -32,11 +32,27 @@ def _calc_PES(params: np.ndarray, n_pi: int, n_nu: int, beta_f_arr: np.ndarray) 
 
 def _plot_n_PES(ax: plt.Axes, P:int, N: int, n_pi: int, n_nu: int, beta_f_arr: np.ndarray, params: np.ndarray, expt_PES: np.ndarray) -> plt.Axes:
     """ plot PES of one nucleus with given N """
-    pred_PES = _calc_PES(params, 6, n_nu, beta_f_arr)
-    ax.plot(beta_f_arr, pred_PES, linestyle='-', color="black", label="IBM PES")
+    # Use the same beta range as the experimental data for prediction
+    # Filter expt_PES to match training range if specified
+    if "beta_min" in CONFIG["training"] and "beta_max" in CONFIG["training"]:
+        b_min = CONFIG["training"]["beta_min"]
+        b_max = CONFIG["training"]["beta_max"]
+        mask = (expt_PES[:, 0] >= b_min) & (expt_PES[:, 0] <= b_max)
+        expt_PES = expt_PES[mask]
+
+    if expt_PES.size == 0:
+        return ax
+
+    beta_min = expt_PES[:, 0].min()
+    beta_max = expt_PES[:, 0].max()
+    # Create a dense grid within the experimental range
+    beta_pred = np.linspace(beta_min, beta_max, 100)
+    
+    pred_PES = _calc_PES(params, 6, n_nu, beta_pred)
+    ax.plot(beta_pred, pred_PES, linestyle='-', color="black", label="IBM PES")
 
     idx_min_calc = np.argmin(pred_PES)
-    ax.plot(beta_f_arr[idx_min_calc], pred_PES[idx_min_calc], 'ro', markersize=6)
+    ax.plot(beta_pred[idx_min_calc], pred_PES[idx_min_calc], 'ro', markersize=6)
 
     ax.plot(expt_PES[:, 0], expt_PES[:, 1], linestyle="--", color="tab:orange", label="HFB PES")
     idx_min_expt = np.argmin(expt_PES[:, 1])
@@ -50,7 +66,7 @@ def _plot_n_PES(ax: plt.Axes, P:int, N: int, n_pi: int, n_nu: int, beta_f_arr: n
     return ax
 
 def main():
-    beta_f_arr = np.arange(-0.45, 0.61, 0.01)
+    # beta_f_arr is no longer fixed globally, but determined per nucleus based on expt data
     expt_PES = load_raw_HFB_energies(
         CONFIG["nuclei"]["p_min"],
         CONFIG["nuclei"]["p_max"],
@@ -67,17 +83,23 @@ def main():
         cols = int(np.ceil(np.sqrt(n_panels)))
         rows = int(np.ceil(n_panels / cols))
         base_w, base_h = 5.0, 4.0
-        fig, axes = plt.subplots(rows, cols, figsize=(base_w * cols, base_h * rows), sharex=True, sharey=True)
+        fig, axes = plt.subplots(rows, cols, figsize=(base_w * cols, base_h * rows), sharex=False, sharey=True) # sharex=False to allow different beta ranges
         for i, (n, n_nu) in enumerate(zip(Neutrons, N_nu)):
             expt_PES_n = expt_PES.get((Protons, n))
+            if expt_PES_n is None:
+                continue
             idx_beta0 = np.where(np.isclose(expt_PES_n[:, 0], 0.0))[0]
             if idx_beta0.size == 0:
-                raise ValueError(f"No beta=0 point for N={n}")
-            e0 = expt_PES_n[idx_beta0[0], 1]
+                # If exact 0.0 is not found, find closest
+                idx_beta0 = np.argmin(np.abs(expt_PES_n[:, 0]))
+                # raise ValueError(f"No beta=0 point for N={n}") # Relaxed check
+            
+            e0 = expt_PES_n[idx_beta0[0], 1] if idx_beta0.size > 0 else expt_PES_n[idx_beta0, 1]
             expt_PES_n[:, 1] -= e0
             ax = axes.ravel()[i]
             params = pred_data[i, 6:]
-            _plot_n_PES(ax, Protons, n, 6, n_nu, beta_f_arr, params, expt_PES_n)
+            # Pass None for beta_f_arr as it's now calculated inside _plot_n_PES
+            _plot_n_PES(ax, Protons, n, 6, n_nu, None, params, expt_PES_n)
         fig.tight_layout()
         save_fig(fig, "PES", CONFIG["paths"]["results_dir"] / "images" / pattern_name)
     return

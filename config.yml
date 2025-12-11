@@ -43,3 +43,5 @@ training:
   early_stopping_patience: 50
   lr_factor: 0.5
   lr_patience: 20
+  beta_min: -0.45
+  beta_max: 0.60

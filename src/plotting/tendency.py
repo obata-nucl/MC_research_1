@@ -125,12 +125,24 @@ def _plot_tendency(eval_summary: pd.DataFrame, metric: str = "total_RMSE") -> pl
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Plot tendency of NN architecture")
-    parser.add_argument("--metric", type=str, default="total_RMSE", help="Metric to sort and color by")
+    parser.add_argument("--metric", type=str, default="sum_RMSE", help="Metric to sort and color by")
     args = parser.parse_args()
 
     eval_summary = load_eval_summary()
     if eval_summary is None or eval_summary.empty:
         print("No evaluation summary found.")
+        return
+    
+    # Calculate sum of energy_RMSE and ratio_RMSE if requested
+    if args.metric == "sum_RMSE":
+        if "energy_RMSE" in eval_summary.columns and "ratio_RMSE" in eval_summary.columns:
+            eval_summary["sum_RMSE"] = eval_summary["energy_RMSE"] + eval_summary["ratio_RMSE"]
+        else:
+            print("Columns 'energy_RMSE' and 'ratio_RMSE' are required for 'sum_RMSE'.")
+            return
+
+    if args.metric not in eval_summary.columns:
+        print(f"Metric '{args.metric}' not found in summary. Available: {list(eval_summary.columns)}")
         return
 
     fig = _plot_tendency(eval_summary, metric=args.metric)
