@@ -109,11 +109,35 @@ def _prepare_training_dataset(raw_dict: dict[int, np.ndarray]) -> tuple[np.ndarr
         n_nu = get_n_nu(int(n))
         beta_arr = arr[:, 0]
         energies = arr[:, 1]
+
+        # Filter by beta range if specified in config
+        if "beta_min" in CONFIG["training"] and "beta_max" in CONFIG["training"]:
+            b_min = CONFIG["training"]["beta_min"]
+            b_max = CONFIG["training"]["beta_max"]
+            mask = (beta_arr >= b_min) & (beta_arr <= b_max)
+            beta_arr = beta_arr[mask]
+            energies = energies[mask]
+
+        if beta_arr.size == 0:
+            print(f"[WARN] No data left for N={n} after beta filtering.")
+            continue
+
         # beta = 0 is 
         idx_beta0 = np.where(np.isclose(beta_arr, 0.0))[0]
         if idx_beta0.size == 0:
-            raise ValueError(f"No beta=0 point for N={n}")
-        e0 = energies[idx_beta0[0]]
+            # If exact 0.0 is missing after filtering, try to find it in original array to get E0 reference
+            # But E0 must be subtracted. If 0.0 is not in the training range, we should probably still use E(0) from raw data as reference?
+            # Let's assume E(0) is always needed for normalization.
+            # Re-fetch E0 from original array
+            orig_beta = arr[:, 0]
+            orig_E = arr[:, 1]
+            idx_orig_0 = np.where(np.isclose(orig_beta, 0.0))[0]
+            if idx_orig_0.size == 0:
+                 raise ValueError(f"No beta=0 point for N={n} (needed for normalization)")
+            e0 = orig_E[idx_orig_0[0]]
+        else:
+            e0 = energies[idx_beta0[0]]
+        
         energies -= e0
         n_nu_arr = np.full_like(beta_arr, n_nu)
         X_rows_np = np.stack([n_nu_arr, beta_arr], axis=1)
