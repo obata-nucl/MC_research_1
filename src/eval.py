@@ -15,7 +15,7 @@ from src.utils import load_config, get_all_patterns, _pattern_to_name, _parse_pa
 
 CONFIG = load_config()
 
-def _run_npbos(command: list[str], timeout_sec: float=2.0) -> tuple[str, str, int]:
+def _run_npbos(command: list[str], timeout_sec: float=5.0) -> tuple[str, str, int]:
     """ run NPBOS programs and return IBM spectra as stdout, stderr, and return code """
     proc = None
     try:
