@@ -45,9 +45,14 @@ def load_raw_expt_spectra(p_min: int, p_max: int, n_min: int, n_max: int, p_step
 
     return spectra
 
-def get_n_nu(n: int) -> int:
+def get_boson_num(n: int) -> int:
     closest_magic = min(CONFIG["nuclei"]["magic_numbers"], key=lambda x: abs(n - x))
     return abs(n - closest_magic) // 2
+
+def get_casten_factor(n_pi: int, n_nu: int) -> float:
+    if n_pi + n_nu == 0:
+        return 0.0
+    return (n_pi * n_nu) / (n_pi + n_nu)
 
 def _make_split_indices(X: torch.Tensor,
                         val_ratio: float,
@@ -95,7 +100,7 @@ def apply_minmax_scaler(X: torch.Tensor, min_x: torch.Tensor, range_x: torch.Ten
 def _prepare_training_dataset(raw_dict: dict[int, np.ndarray]) -> tuple[np.ndarray, np.ndarray]:
     """ generate training dataset X, Y from raw_dict(N -> array[[beta, E(beta)], ...])
     
-    X: (num_samples, 3) = [N, N_nu, beta]
+    X: (num_samples, 3) = [n_nu, P, beta]
     Y: (num_samples, ) = E(beta) - E(beta=0)
     """
     X_rows: list[list[float]] = []
@@ -106,7 +111,10 @@ def _prepare_training_dataset(raw_dict: dict[int, np.ndarray]) -> tuple[np.ndarr
         if arr.ndim != 2 or arr.shape[1] < 2:
             print(f"[WARN] Skipped N={n} : expected 2 columns [beta,E], got shape {arr.shape}")
             continue
-        n_nu = get_n_nu(int(n))
+        n_nu = get_boson_num(int(n))
+        n_pi = get_boson_num(int(p))
+        P = get_casten_factor(n_pi, n_nu)
+        
         beta_arr = arr[:, 0]
         energies = arr[:, 1]
 
@@ -140,7 +148,8 @@ def _prepare_training_dataset(raw_dict: dict[int, np.ndarray]) -> tuple[np.ndarr
         
         energies -= e0
         n_nu_arr = np.full_like(beta_arr, n_nu)
-        X_rows_np = np.stack([n_nu_arr, beta_arr], axis=1)
+        P_arr = np.full_like(beta_arr, P, dtype=float)
+        X_rows_np = np.stack([n_nu_arr, P_arr, beta_arr], axis=1)
         X_rows.extend(X_rows_np.tolist())
         Y_vals.extend(energies.tolist())
 
@@ -167,9 +176,9 @@ def _save_training_dataset(X: np.ndarray, Y: np.ndarray, basename: str = "traini
         import csv
         with open(csv_path, "w", newline="") as f:
             writer = csv.writer(f)
-            writer.writerow(["n_nu", "beta", "E"])  # header
-            for (n_nu, beta), energy in zip(X, Y):
-                writer.writerow([int(n_nu), float(beta), f"{float(energy):.3f}"])
+            writer.writerow(["n_nu", "P", "beta", "E"])  # header
+            for (n_nu, P, beta), energy in zip(X, Y):
+                writer.writerow([int(n_nu), float(P), float(beta), f"{float(energy):.3f}"])
         paths["csv"] = csv_path
     except Exception as e:
         print(f"[WARN] Failed to write CSV: {e}")
@@ -192,16 +201,15 @@ def _prepare_eval_dataset(raw_data: dict[tuple[int, int], np.ndarray]) -> np.nda
     for (p, n), arr in raw_data.items():
         if arr is None:
             continue
-        if arr.ndim != 2 or arr.shape[1] < 2:
-            print(f"[WARN] Skipped N={n} : expected 2 columns [beta,E], got shape {arr.shape}")
-            continue
-        n_nu = get_n_nu(int(n))
+        n_pi = get_boson_num(int(p))
+        n_nu = get_boson_num(int(n))
+        P = get_casten_factor(n_pi, n_nu)
         beta_arr = arr[:, 0]
         energies = arr[:, 1]
 
         idx_beta_min = np.argmin(energies)
         beta_min = beta_arr[idx_beta_min]
-        X_rows.append([n, n_nu, beta_min])
+        X_rows.append([n, n_nu, P, beta_min])
     return np.array(X_rows)
 
 def _save_eval_dataset(X_eval: np.ndarray, basename: str) -> dict:
@@ -220,9 +228,9 @@ def _save_eval_dataset(X_eval: np.ndarray, basename: str) -> dict:
         import csv
         with open(csv_path, "w", newline="") as f:
             writer = csv.writer(f)
-            writer.writerow(["N", "n_nu", "beta_min"])  # header
-            for n, n_nu, beta_min in X_eval:
-                writer.writerow([int(n), int(n_nu), float(beta_min)])
+            writer.writerow(["N", "n_nu", "P", "beta_min"])  # header
+            for n, n_nu, P, beta_min in X_eval:
+                writer.writerow([int(n), int(n_nu), float(P), float(beta_min)])
         paths["csv"] = csv_path
     except Exception as e:
         print(f"[WARN] Failed to write eval inputs CSV: {e}")
@@ -237,7 +245,7 @@ def load_eval_dataset(basename: str) -> tuple[torch.Tensor, torch.Tensor]:
     # Load scaler locally to avoid import-time error
     scaler = load_scaler(CONFIG)
     
-    # X_eval has [N, n_nu, beta_min], but model expects [n_nu, beta]
+    # X_eval has [N, n_nu, P, beta_min], and model expects [n_nu, P, beta]
     X_features = X_eval[:, 1:]
     X_eval_scaled = apply_minmax_scaler(X_features, scaler["min"], scaler["range"])
     return X_eval, X_eval_scaled

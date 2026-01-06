@@ -7,7 +7,7 @@ def IBM2_PES(params: torch.Tensor, n_pi: torch.Tensor, n_nu: torch.Tensor, beta_
     eps = params[:, 0].unsqueeze(1)
     kappa = params[:, 1].unsqueeze(1)
     chi_n = params[:, 2].unsqueeze(1)
-    beta_b = beta_f*5.0
+    beta_b = beta_f*2.5
 
     beta2 = beta_b**2
     A = 1/(1 + beta2)
