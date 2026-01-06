@@ -4,7 +4,7 @@ import numpy as np
 import re
 import torch
 
-from src.data import get_n_nu, load_raw_HFB_energies
+from src.data import get_boson_num, load_raw_HFB_energies
 from src.loader import load_eval_results
 from src.physics import IBM2_PES
 from src.plotting.plot import save_fig
@@ -78,7 +78,7 @@ def main():
     for pattern_name, pred_data in load_eval_results().items():
         Protons = 62    # for Sm isotopes
         Neutrons = pred_data[:, 0].astype(int)
-        N_nu = [get_n_nu(N) for N in Neutrons]
+        N_nu = [get_boson_num(N) for N in Neutrons]
         n_panels = len(Neutrons)
         cols = int(np.ceil(np.sqrt(n_panels)))
         rows = int(np.ceil(n_panels / cols))

@@ -248,12 +248,20 @@ def main():
     # NPBOS best 2 models (Energy RMSE & Ratio RMSE)
     best_energy_row = eval_summary.loc[eval_summary["energy_RMSE"].idxmin()]
     best_ratio_row = eval_summary.loc[eval_summary["ratio_RMSE"].idxmin()]
+
+    # Best total RMSE (Energy + Ratio)
+    # Note: Depending on the scale of energy vs ratio, you might want to normalize them or use a weighted sum.
+    # Here we simply sum them as requested.
+    eval_summary["total_RMSE"] = eval_summary["energy_RMSE"] + eval_summary["ratio_RMSE"]
+    best_total_row = eval_summary.loc[eval_summary["total_RMSE"].idxmin()]
     
     pattern_energy_best = _parse_pattern_name(best_energy_row["pattern"])
     pattern_ratio_best = _parse_pattern_name(best_ratio_row["pattern"])
+    pattern_total_best = _parse_pattern_name(best_total_row["pattern"])
     
     print(f"Best NPBOS Energy RMSE: {best_energy_row['pattern']} (RMSE={best_energy_row['energy_RMSE']})")
     print(f"Best NPBOS Ratio RMSE: {best_ratio_row['pattern']} (RMSE={best_ratio_row['ratio_RMSE']})")
+    print(f"Best NPBOS total RMSE: {best_total_row['pattern']} (RMSE={best_total_row['total_RMSE']})")
 
     # PES Training best model
     pattern_train_best, train_rmse = find_best_training_model(patterns)
@@ -268,6 +276,7 @@ def main():
         target_patterns.append(pattern_train_best)
     target_patterns.append(pattern_energy_best)
     target_patterns.append(pattern_ratio_best)
+    target_patterns.append(pattern_total_best)
     
     # Remove duplicates
     unique_patterns = []
