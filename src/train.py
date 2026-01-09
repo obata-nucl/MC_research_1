@@ -83,21 +83,11 @@ def _train_worker(args):
                 for batch_X, batch_X_scaled, batch_Y in train_loader:
                     optimizer.zero_grad()
                     outputs = model(batch_X_scaled)
-                    # Make n_pi, n_nu, beta shapes explicit: (batch, 1)
-                    # batch_X is [n_nu, P, beta]
-                    n_nu_tensor = batch_X[:, 0].unsqueeze(1)
-                    P_tensor = batch_X[:, 1].unsqueeze(1)
-                    beta_tensor = batch_X[:, 2].unsqueeze(1)
-
-                    # Calculate n_pi from P and n_nu
-                    # P = (n_pi * n_nu) / (n_pi + n_nu) => n_pi = (P * n_nu) / (n_nu - P)
-                    denom = n_nu_tensor - P_tensor
-                    # Add small epsilon to avoid division by zero if P is very close to n_nu (unlikely)
-                    denom = torch.where(torch.abs(denom) < 1e-6, torch.ones_like(denom) * 1e-6, denom)
-                    n_pi_tensor = (P_tensor * n_nu_tensor) / denom
                     
-                    # Round to nearest integer to recover exact boson number
-                    n_pi_tensor = torch.round(n_pi_tensor)
+                    # New data structure: [n_nu, n_pi, P, beta]
+                    n_nu_tensor = batch_X[:, 0].unsqueeze(1)
+                    n_pi_tensor = batch_X[:, 1].unsqueeze(1).float()
+                    beta_tensor = batch_X[:, 3].unsqueeze(1)
 
                     y_tensor = batch_Y.unsqueeze(1)
                     train_loss = loss_fn(outputs, n_pi_tensor, n_nu_tensor, beta_tensor, y_tensor)
@@ -115,17 +105,10 @@ def _train_worker(args):
                 with torch.no_grad():
                     for batch_X, batch_X_scaled, batch_Y in val_loader:
                         outputs = model(batch_X_scaled)
-                        # validation: same tensor shapes as training
+
                         n_nu_tensor = batch_X[:, 0].unsqueeze(1)
-                        P_tensor = batch_X[:, 1].unsqueeze(1)
-                        beta_tensor = batch_X[:, 2].unsqueeze(1)
-                        
-                        denom = n_nu_tensor - P_tensor
-                        denom = torch.where(torch.abs(denom) < 1e-6, torch.ones_like(denom) * 1e-6, denom)
-                        n_pi_tensor = (P_tensor * n_nu_tensor) / denom
-                        
-                        # Round to nearest integer to recover exact boson number
-                        n_pi_tensor = torch.round(n_pi_tensor)
+                        n_pi_tensor = batch_X[:, 1].unsqueeze(1).float()
+                        beta_tensor = batch_X[:, 3].unsqueeze(1)
                         
                         y_tensor = batch_Y.unsqueeze(1)
                         val_loss = loss_fn(outputs, n_pi_tensor, n_nu_tensor, beta_tensor, y_tensor)

@@ -19,12 +19,11 @@ def _plot_spectra(pred_data: np.ndarray, expt_data: dict[tuple[int, int], np.nda
     ax[0].set_title("Theory", fontsize=16)
     ax[1].set_title("Expt.", fontsize=16)
     for a in ax:
-        a.set_ylim(0, 2.5)
         a.set_xlabel("Neutron Number", fontsize=14)
         a.set_ylabel("Energy [MeV]", fontsize=14)
         a.tick_params(axis="both", which="major", labelsize=12)
     for i in range(len(level_labels)):
-        ax[0].plot(pred_data[:, 0].astype(int), pred_data[:, i + 1], marker=markers[i], label=level_labels[i])
+        ax[0].plot(pred_data[:, 0].astype(int), pred_data[:, i + 2], marker=markers[i], label=level_labels[i])
         ax[1].plot([key[1] for key in expt_keys], expt_energies[:, i], marker=markers[i], label=level_labels[i])
     for a in ax:
         a.legend(loc="best", fontsize=12)
@@ -35,7 +34,7 @@ def _plot_ratio(pred_data: np.ndarray, expt_data: dict[tuple[int, int], np.ndarr
     fig, ax = plt.subplots(figsize=(8, 6))
     expt_keys = list(expt_data.keys())
     expt_ratios = np.array([expt_data[key][4] for key in expt_keys])
-    ax.plot(pred_data[:, 0].astype(int), pred_data[:, 5], marker='D', color="#2A23F3", linewidth=2.0, label="Theory Ratio")
+    ax.plot(pred_data[:, 0].astype(int), pred_data[:, 6], marker='D', color="#2A23F3", linewidth=2.0, label="Theory Ratio")
     ax.plot([key[1] for key in expt_keys], expt_ratios, marker='D', color="#5C006EFF", linestyle="--", linewidth=1.8, label="Expt. Ratio")
     ax.set_title("E(4+)/E(2+) Ratio", fontsize=16)
     ax.set_ylim(1.0, 4.0)
@@ -46,12 +45,12 @@ def _plot_ratio(pred_data: np.ndarray, expt_data: dict[tuple[int, int], np.ndarr
     plt.tight_layout()
     return fig
 
-def _plot_params(pred_data: np.ndarray, labels: dict[str, str] = {"eps": r"$\varepsilon$", "kappa": r"$\kappa$", "chi_n": r"$\chi_\nu$"}, lims: dict[str, tuple[float, float]] = {"eps": [0, 1.5], "kappa": [-0.5, 0], "chi_n": [-2.0, 0]}) -> plt.Figure:
+def _plot_params(pred_data: np.ndarray, labels: dict[str, str] = {"eps": r"$\varepsilon$", "kappa": r"$\kappa$", "chi_n": r"$\chi_\nu$"}, lims: dict[str, tuple[float, float]] = {"eps": [0, 3.0], "kappa": [-1.0, 0], "chi_n": [-1.5, 0]}) -> plt.Figure:
     fig, axes = plt.subplots(1, len(labels), figsize=(5*len(labels), 5))
 
     for i, param_name in enumerate(labels.keys()):
         ax = axes[i]
-        ax.plot(pred_data[:, 0].astype(int), pred_data[:, i + 6], linestyle='-', color="black", marker='o')
+        ax.plot(pred_data[:, 0].astype(int), pred_data[:, i + 7], linestyle='-', color="black", marker='o')
         ax.set_title(labels[param_name], fontsize=20)
         ax.set_ylim(lims[param_name])
         ax.grid(True, alpha=0.3)
@@ -76,14 +75,29 @@ def main():
         CONFIG["nuclei"]["p_step"]
     )
     for pattern_name, pred_data in load_eval_results().items():
-        fig_spectra = _plot_spectra(pred_data, expt_data)
-        save_fig(fig_spectra, "spectra", CONFIG["paths"]["results_dir"] / "images" / pattern_name)
+        # pred_data: [N, Z, E2, E4, E6, E0, R, eps, kappa, chi_n]
+        # Split by Z
+        unique_Zs = np.unique(pred_data[:, 1].astype(int))
+        for z in unique_Zs:
+            mask = (pred_data[:, 1].astype(int) == z)
+            z_pred_data = pred_data[mask]
+            
+            # Filter expt data for this Z
+            z_expt_data = {k: v for k, v in expt_data.items() if k[0] == z}
+            
+            if not z_expt_data:
+                continue
 
-        fig_ratio = _plot_ratio(pred_data, expt_data)
-        save_fig(fig_ratio, "ratio", CONFIG["paths"]["results_dir"] / "images" / pattern_name)
+            save_dir = CONFIG["paths"]["results_dir"] / "images" / pattern_name / str(z)
 
-        fig_params = _plot_params(pred_data)
-        save_fig(fig_params, "params", CONFIG["paths"]["results_dir"] / "images" / pattern_name)
+            fig_spectra = _plot_spectra(z_pred_data, z_expt_data)
+            save_fig(fig_spectra, "spectra", save_dir)
+
+            fig_ratio = _plot_ratio(z_pred_data, z_expt_data)
+            save_fig(fig_ratio, "ratio", save_dir)
+
+            fig_params = _plot_params(z_pred_data)
+            save_fig(fig_params, "params", save_dir)
     return
 
 if __name__ == "__main__":

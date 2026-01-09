@@ -148,8 +148,9 @@ def _prepare_training_dataset(raw_dict: dict[int, np.ndarray]) -> tuple[np.ndarr
         
         energies -= e0
         n_nu_arr = np.full_like(beta_arr, n_nu)
+        n_pi_arr = np.full_like(beta_arr, n_pi)
         P_arr = np.full_like(beta_arr, P, dtype=float)
-        X_rows_np = np.stack([n_nu_arr, P_arr, beta_arr], axis=1)
+        X_rows_np = np.stack([n_nu_arr, n_pi_arr, P_arr, beta_arr], axis=1)
         X_rows.extend(X_rows_np.tolist())
         Y_vals.extend(energies.tolist())
 
@@ -176,9 +177,9 @@ def _save_training_dataset(X: np.ndarray, Y: np.ndarray, basename: str = "traini
         import csv
         with open(csv_path, "w", newline="") as f:
             writer = csv.writer(f)
-            writer.writerow(["n_nu", "P", "beta", "E"])  # header
-            for (n_nu, P, beta), energy in zip(X, Y):
-                writer.writerow([int(n_nu), float(P), float(beta), f"{float(energy):.3f}"])
+            writer.writerow(["n_nu", "n_pi", "P", "beta", "E"])  # header
+            for (n_nu, n_pi, P, beta), energy in zip(X, Y):
+                writer.writerow([int(n_nu), int(n_pi), float(P), float(beta), f"{float(energy):.3f}"])
         paths["csv"] = csv_path
     except Exception as e:
         print(f"[WARN] Failed to write CSV: {e}")
@@ -209,7 +210,7 @@ def _prepare_eval_dataset(raw_data: dict[tuple[int, int], np.ndarray]) -> np.nda
 
         idx_beta_min = np.argmin(energies)
         beta_min = beta_arr[idx_beta_min]
-        X_rows.append([n, n_nu, P, beta_min])
+        X_rows.append([n, p, n_nu, n_pi, P, beta_min])
     return np.array(X_rows)
 
 def _save_eval_dataset(X_eval: np.ndarray, basename: str) -> dict:
@@ -228,9 +229,9 @@ def _save_eval_dataset(X_eval: np.ndarray, basename: str) -> dict:
         import csv
         with open(csv_path, "w", newline="") as f:
             writer = csv.writer(f)
-            writer.writerow(["N", "n_nu", "P", "beta_min"])  # header
-            for n, n_nu, P, beta_min in X_eval:
-                writer.writerow([int(n), int(n_nu), float(P), float(beta_min)])
+            writer.writerow(["N", "Z", "n_nu", "n_pi", "P", "beta_min"])  # header
+            for n, p, n_nu, n_pi, P, beta_min in X_eval:
+                writer.writerow([int(n), int(p), int(n_nu), int(n_pi), float(P), float(beta_min)])
         paths["csv"] = csv_path
     except Exception as e:
         print(f"[WARN] Failed to write eval inputs CSV: {e}")
@@ -245,8 +246,9 @@ def load_eval_dataset(basename: str) -> tuple[torch.Tensor, torch.Tensor]:
     # Load scaler locally to avoid import-time error
     scaler = load_scaler(CONFIG)
     
-    # X_eval has [N, n_nu, P, beta_min], and model expects [n_nu, P, beta]
-    X_features = X_eval[:, 1:]
+    # X_eval has [N, Z, n_nu, n_pi, P, beta_min]
+    # Model expects [n_nu, n_pi, P, beta] -> Indices 2, 3, 4, 5
+    X_features = X_eval[:, 2:]
     X_eval_scaled = apply_minmax_scaler(X_features, scaler["min"], scaler["range"])
     return X_eval, X_eval_scaled
 
