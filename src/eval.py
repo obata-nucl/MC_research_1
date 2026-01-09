@@ -66,11 +66,12 @@ def _evaluate_model(X_eval: torch.Tensor, X_eval_scaled: torch.Tensor, pattern: 
 
     for i in range(num_eval_X):
         n = int(X_eval[i, 0].item())
-        n_nu = int(X_eval[i, 1].item())
-        expt_spectra_n = expt_spectra[(62, n)]
+        p = int(X_eval[i, 1].item())
+        n_nu = int(X_eval[i, 2].item())
+        expt_spectra_n = expt_spectra.get((p, n))
 
-        if expt_spectra_n.size == 0:
-            print(f"No expt data found for N={n}")
+        if expt_spectra_n is None or expt_spectra_n.size == 0:
+            # print(f"No expt data found for Z={p} N={n}")
             continue
 
         with torch.no_grad():
@@ -80,7 +81,7 @@ def _evaluate_model(X_eval: torch.Tensor, X_eval_scaled: torch.Tensor, pattern: 
         sh_command = [
             "bash", CONFIG["paths"]["src_dir"] / "eval.sh",
             str(CONFIG["paths"]["NPBOS_dir"]),
-            str(int(n + 62)), str(int(n_nu)),
+            str(int(n + p)), str(int(n_nu)),
             *[f"{param:.3f}" for param in pred_params]
         ]
 
@@ -150,38 +151,39 @@ def _save_spectra_to_csv(pattern: list[int], X_eval: torch.Tensor, X_eval_scaled
     result_dir.mkdir(parents=True, exist_ok=True)
     save_path = result_dir / f"{_pattern_to_name(pattern)}.csv"
     import time
-    header = ["N", "2+_1", "4+_1", "6+_1", "0+_2", "R_4/2", "eps", "kappa", "chi_n"]
+    header = ["N", "Z", "2+_1", "4+_1", "6+_1", "0+_2", "R_4/2", "eps", "kappa", "chi_n"]
     attempt = 1
     while attempt <= max_attempts:
         rows = []
         failed = False
         for x_eval, x_eval_scaled in zip(X_eval, X_eval_scaled):
             n = int(x_eval[0].item())
-            n_nu = int(x_eval[1].item())
+            p = int(x_eval[1].item())
+            n_nu = int(x_eval[2].item())
             with torch.no_grad():
                 outputs = model(x_eval_scaled.unsqueeze(0))
             pred_params = outputs.squeeze(0).numpy()
             sh_command = [
                 "bash", CONFIG["paths"]["src_dir"] / "eval.sh",
                 str(CONFIG["paths"]["NPBOS_dir"]),
-                str(int(n + 62)), str(int(n_nu)),
+                str(int(n + p)), str(int(n_nu)),
                 *[f"{param:.3f}" for param in pred_params]
             ]
             stdout, _, rc = _run_npbos(sh_command)
             if rc != 0:
-                print(f"timeout for N={n}, params = {pred_params} (attempt {attempt})")
+                print(f"timeout for Z={p} N={n}, params = {pred_params} (attempt {attempt})")
                 failed = True
                 break
             try:
                 pred_energies = list(map(float, stdout.strip().split()))
             except ValueError as e:
-                print(f"Error parsing output for N={n}: {stdout} - {e} (attempt {attempt})")
+                print(f"Error parsing output for Z={p} N={n}: {stdout} - {e} (attempt {attempt})")
                 failed = True
                 break
 
             if len(pred_energies) == 4 and pred_energies[0] != 0:
                 ratio = pred_energies[1] / pred_energies[0]
-                rows.append([n, *pred_energies, f"{ratio:.3f}", *[f"{param:.3f}" for param in pred_params]])
+                rows.append([n, p, *pred_energies, f"{ratio:.3f}", *[f"{param:.3f}" for param in pred_params]])
         if not failed:
             # All N succeeded for this pattern -> write CSV and exit loop
             with open(save_path, "w", newline="") as f:

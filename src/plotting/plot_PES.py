@@ -48,7 +48,7 @@ def _plot_n_PES(ax: plt.Axes, P:int, N: int, n_pi: int, n_nu: int, beta_f_arr: n
     # Create a dense grid within the experimental range
     beta_pred = np.linspace(beta_min, beta_max, 100)
     
-    pred_PES = _calc_PES(params, 6, n_nu, beta_pred)
+    pred_PES = _calc_PES(params, n_pi, n_nu, beta_pred)
     ax.plot(beta_pred, pred_PES, linestyle='-', color="black", label="IBM PES")
 
     idx_min_calc = np.argmin(pred_PES)
@@ -58,7 +58,7 @@ def _plot_n_PES(ax: plt.Axes, P:int, N: int, n_pi: int, n_nu: int, beta_f_arr: n
     idx_min_expt = np.argmin(expt_PES[:, 1])
     ax.plot(expt_PES[idx_min_expt, 0], expt_PES[idx_min_expt, 1], 'bo', markersize=6)
     mass_number = P + N
-    ax.set_title(rf"$^{{{mass_number}}}\mathrm{{Sm}}$", fontsize=18)
+    ax.set_title(rf"$^{{{mass_number}}}\mathrm{{Sm}}$ (Z={P})", fontsize=18)
     ax.set_xlabel(r"$\beta$", fontsize=14)
     ax.set_ylabel("Energy [MeV]", fontsize=14)
     ax.tick_params(axis="both", which="major", labelsize=12)
@@ -76,32 +76,66 @@ def main():
         CONFIG["nuclei"]["n_step"]
     )
     for pattern_name, pred_data in load_eval_results().items():
-        Protons = 62    # for Sm isotopes
-        Neutrons = pred_data[:, 0].astype(int)
-        N_nu = [get_boson_num(N) for N in Neutrons]
-        n_panels = len(Neutrons)
-        cols = int(np.ceil(np.sqrt(n_panels)))
-        rows = int(np.ceil(n_panels / cols))
-        base_w, base_h = 5.0, 4.0
-        fig, axes = plt.subplots(rows, cols, figsize=(base_w * cols, base_h * rows), sharex=False, sharey=True) # sharex=False to allow different beta ranges
-        for i, (n, n_nu) in enumerate(zip(Neutrons, N_nu)):
-            expt_PES_n = expt_PES.get((Protons, n))
-            if expt_PES_n is None:
-                continue
-            idx_beta0 = np.where(np.isclose(expt_PES_n[:, 0], 0.0))[0]
-            if idx_beta0.size == 0:
-                # If exact 0.0 is not found, find closest
-                idx_beta0 = np.argmin(np.abs(expt_PES_n[:, 0]))
-                # raise ValueError(f"No beta=0 point for N={n}") # Relaxed check
+        # pred_data: [N, Z, E2, E4, E6, E0, R, eps, kappa, chi_n]
+        unique_Zs = np.unique(pred_data[:, 1].astype(int))
+        
+        for z in unique_Zs:
+            mask = (pred_data[:, 1].astype(int) == z)
+            z_pred_data = pred_data[mask]
             
-            e0 = expt_PES_n[idx_beta0[0], 1] if idx_beta0.size > 0 else expt_PES_n[idx_beta0, 1]
-            expt_PES_n[:, 1] -= e0
-            ax = axes.ravel()[i]
-            params = pred_data[i, 6:]
-            # Pass None for beta_f_arr as it's now calculated inside _plot_n_PES
-            _plot_n_PES(ax, Protons, n, 6, n_nu, None, params, expt_PES_n)
-        fig.tight_layout()
-        save_fig(fig, "PES", CONFIG["paths"]["results_dir"] / "images" / pattern_name)
+            Neutrons = z_pred_data[:, 0].astype(int)
+            n_pi = get_boson_num(z)
+            N_nu = [get_boson_num(int(n)) for n in Neutrons]
+            
+            n_panels = len(Neutrons)
+            if n_panels == 0:
+                continue
+
+            cols = int(np.ceil(np.sqrt(n_panels)))
+            rows = int(np.ceil(n_panels / cols))
+            
+            # handle case where cols or rows might be 0? (checked n_panels==0 above)
+            cols = max(1, cols)
+            rows = max(1, rows)
+
+            base_w, base_h = 5.0, 4.0
+            fig, axes = plt.subplots(rows, cols, figsize=(base_w * cols, base_h * rows), sharex=False, sharey=True)
+            
+            if n_panels == 1:
+                axes_flat = [axes]
+            else:
+                axes_flat = axes.ravel()
+
+            for i, (n, n_nu) in enumerate(zip(Neutrons, N_nu)):
+                expt_PES_n = expt_PES.get((z, n))
+                ax = axes_flat[i]
+                
+                if expt_PES_n is None:
+                    ax.text(0.5, 0.5, "No HFB Data", ha='center', va='center')
+                    continue
+
+                idx_beta0 = np.where(np.isclose(expt_PES_n[:, 0], 0.0))[0]
+                if idx_beta0.size == 0:
+                    idx_beta0 = np.argmin(np.abs(expt_PES_n[:, 0]))
+                
+                # Copy to avoid modifying shared cache
+                expt_PES_plot = expt_PES_n.copy()
+                e0 = expt_PES_n[idx_beta0[0], 1] if idx_beta0.size > 0 else expt_PES_n[idx_beta0, 1]
+                expt_PES_plot[:, 1] -= e0
+                
+                # params index starts from 7: [N, Z, E2, E4, E6, E0, R, eps, kappa, chi_n]
+                params = z_pred_data[i, 7:]
+                
+                # beta_f_arr param is dummy/unused in modified _plot_n_PES logic (it builds linspace)
+                _plot_n_PES(ax, z, n, n_pi, n_nu, None, params, expt_PES_plot)
+
+            # Hide unused axes
+            for j in range(i + 1, len(axes_flat)):
+                axes_flat[j].axis('off')
+
+            fig.tight_layout()
+            save_path = CONFIG["paths"]["results_dir"] / "images" / pattern_name / str(z)
+            save_fig(fig, "PES", save_path)
     return
 
 if __name__ == "__main__":
