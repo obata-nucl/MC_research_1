@@ -23,8 +23,9 @@ class NN(nn.Module):
         out = self.network(x)
         eps = F.softplus(out[:, 0])
         kappa = -F.softplus(out[:, 1])
-        chi_n = -F.softplus(out[:, 2])
-        return torch.stack([eps, kappa, chi_n], dim=1)
+        chi_pi = -F.softplus(out[:, 2])
+        chi_n = -F.softplus(out[:, 3])
+        return torch.stack([eps, kappa, chi_pi, chi_n], dim=1)
 
 def load_NN_model(pattern: list[int]) -> NN:
     model_path = CONFIG["paths"]["results_dir"] / "training" / _pattern_to_name(pattern) / "best_model.pth"

@@ -15,6 +15,11 @@ from src.utils import load_config, get_all_patterns, _pattern_to_name, _parse_pa
 
 CONFIG = load_config()
 
+Z_MAP = {
+    50: "Sn", 52: "Te", 54: "Xe", 56: "Ba", 58: "Ce", 60: "Nd", 62: "Sm", 64: "Gd",
+    66: "Dy", 68: "Er", 70: "Yb", 72: "Hf", 74: "W", 76: "Os", 78: "Pt", 80: "Hg", 82: "Pb"
+}
+
 def _run_npbos(command: list[str], timeout_sec: float=5.0) -> tuple[str, str, int]:
     """ run NPBOS programs and return IBM spectra as stdout, stderr, and return code """
     proc = None
@@ -68,6 +73,8 @@ def _evaluate_model(X_eval: torch.Tensor, X_eval_scaled: torch.Tensor, pattern: 
         n = int(X_eval[i, 0].item())
         p = int(X_eval[i, 1].item())
         n_nu = int(X_eval[i, 2].item())
+        n_pi = int(X_eval[i, 3].item())
+        element = Z_MAP.get(p, "Sm")
         expt_spectra_n = expt_spectra.get((p, n))
 
         if expt_spectra_n is None or expt_spectra_n.size == 0:
@@ -81,7 +88,7 @@ def _evaluate_model(X_eval: torch.Tensor, X_eval_scaled: torch.Tensor, pattern: 
         sh_command = [
             "bash", CONFIG["paths"]["src_dir"] / "eval.sh",
             str(CONFIG["paths"]["NPBOS_dir"]),
-            str(int(n + p)), str(int(n_nu)),
+            str(int(n + p)), str(int(n_nu)), str(int(n_pi)), element,
             *[f"{param:.3f}" for param in pred_params]
         ]
 
@@ -151,7 +158,7 @@ def _save_spectra_to_csv(pattern: list[int], X_eval: torch.Tensor, X_eval_scaled
     result_dir.mkdir(parents=True, exist_ok=True)
     save_path = result_dir / f"{_pattern_to_name(pattern)}.csv"
     import time
-    header = ["N", "Z", "2+_1", "4+_1", "6+_1", "0+_2", "R_4/2", "eps", "kappa", "chi_n"]
+    header = ["N", "Z", "2+_1", "4+_1", "6+_1", "0+_2", "R_4/2", "eps", "kappa", "chi_pi", "chi_n"]
     attempt = 1
     while attempt <= max_attempts:
         rows = []
@@ -160,13 +167,15 @@ def _save_spectra_to_csv(pattern: list[int], X_eval: torch.Tensor, X_eval_scaled
             n = int(x_eval[0].item())
             p = int(x_eval[1].item())
             n_nu = int(x_eval[2].item())
+            n_pi = int(x_eval[3].item())
+            element = Z_MAP.get(p, "Sm")
             with torch.no_grad():
                 outputs = model(x_eval_scaled.unsqueeze(0))
             pred_params = outputs.squeeze(0).numpy()
             sh_command = [
                 "bash", CONFIG["paths"]["src_dir"] / "eval.sh",
                 str(CONFIG["paths"]["NPBOS_dir"]),
-                str(int(n + p)), str(int(n_nu)),
+                str(int(n + p)), str(int(n_nu)), str(int(n_pi)), element,
                 *[f"{param:.3f}" for param in pred_params]
             ]
             stdout, _, rc = _run_npbos(sh_command)
