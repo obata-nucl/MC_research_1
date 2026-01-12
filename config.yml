@@ -27,7 +27,7 @@ nuclei:
 # -----------------
 nn:
   input_dim: 4
-  output_dim: 3
+  output_dim: 4
   nodes_options: [8, 16, 32, 64]
   layers_options: [2, 3, 4]
 
