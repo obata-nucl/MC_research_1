@@ -45,14 +45,15 @@ def _plot_ratio(pred_data: np.ndarray, expt_data: dict[tuple[int, int], np.ndarr
     plt.tight_layout()
     return fig
 
-def _plot_params(pred_data: np.ndarray, labels: dict[str, str] = {"eps": r"$\varepsilon$", "kappa": r"$\kappa$", "chi_n": r"$\chi_\nu$"}, lims: dict[str, tuple[float, float]] = {"eps": [0, 3.0], "kappa": [-1.0, 0], "chi_n": [-1.5, 0]}) -> plt.Figure:
+def _plot_params(pred_data: np.ndarray, labels: dict[str, str] = {"eps": r"$\varepsilon$", "kappa": r"$\kappa$", "chi_pi": r"$\chi_\pi$", "chi_n": r"$\chi_\nu$"}, lims: dict[str, tuple[float, float]] = None) -> plt.Figure:
     fig, axes = plt.subplots(1, len(labels), figsize=(5*len(labels), 5))
 
     for i, param_name in enumerate(labels.keys()):
         ax = axes[i]
         ax.plot(pred_data[:, 0].astype(int), pred_data[:, i + 7], linestyle='-', color="black", marker='o')
         ax.set_title(labels[param_name], fontsize=20)
-        ax.set_ylim(lims[param_name])
+        if lims is not None and param_name in lims:
+            ax.set_ylim(lims[param_name])
         ax.grid(True, alpha=0.3)
         ax.tick_params(axis="both", labelsize=12)
     fig.tight_layout()
