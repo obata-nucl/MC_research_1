@@ -1,7 +1,6 @@
 from __future__ import annotations
 import matplotlib.pyplot as plt
 import numpy as np
-import re
 import torch
 
 from src.data import get_boson_num, load_raw_HFB_energies
@@ -30,7 +29,7 @@ def _calc_PES(params: np.ndarray, n_pi: int, n_nu: int, beta_f_arr: np.ndarray) 
     # pes_tensor shape is (1, nbeta) -> return 1D numpy array
     return pes_tensor.squeeze(0).numpy()
 
-def _plot_n_PES(ax: plt.Axes, P:int, N: int, n_pi: int, n_nu: int, beta_f_arr: np.ndarray, params: np.ndarray, expt_PES: np.ndarray) -> plt.Axes:
+def _plot_n_PES(ax: plt.Axes, P:int, N: int, n_pi: int, n_nu: int, beta_f_arr: np.ndarray, params: np.ndarray, expt_PES: np.ndarray, element_name: str = "Sm") -> plt.Axes:
     """ plot PES of one nucleus with given N """
     # Use the same beta range as the experimental data for prediction
     # Filter expt_PES to match training range if specified
@@ -58,7 +57,7 @@ def _plot_n_PES(ax: plt.Axes, P:int, N: int, n_pi: int, n_nu: int, beta_f_arr: n
     idx_min_expt = np.argmin(expt_PES[:, 1])
     ax.plot(expt_PES[idx_min_expt, 0], expt_PES[idx_min_expt, 1], 'bo', markersize=6)
     mass_number = P + N
-    ax.set_title(rf"$^{{{mass_number}}}\mathrm{{Sm}}$ (Z={P})", fontsize=18)
+    ax.set_title(rf"$^{{{mass_number}}}\mathrm{{{element_name}}}$ (Z={P})", fontsize=18)
     ax.set_xlabel(r"$\beta$", fontsize=14)
     ax.set_ylabel("Energy [MeV]", fontsize=14)
     ax.tick_params(axis="both", which="major", labelsize=12)
@@ -84,6 +83,7 @@ def main():
             z_pred_data = pred_data[mask]
             
             Neutrons = z_pred_data[:, 0].astype(int)
+            element_name = CONFIG["elements"].get(int(z), "Sm")
             n_pi = get_boson_num(z)
             N_nu = [get_boson_num(int(n)) for n in Neutrons]
             
@@ -127,7 +127,7 @@ def main():
                 params = z_pred_data[i, 7:]
                 
                 # beta_f_arr param is dummy/unused in modified _plot_n_PES logic (it builds linspace)
-                _plot_n_PES(ax, z, n, n_pi, n_nu, None, params, expt_PES_plot)
+                _plot_n_PES(ax, z, n, n_pi, n_nu, None, params, expt_PES_plot, element_name=element_name)
 
             # Hide unused axes
             for j in range(i + 1, len(axes_flat)):

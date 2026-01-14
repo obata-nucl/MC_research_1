@@ -15,11 +15,6 @@ from src.utils import load_config, get_all_patterns, _pattern_to_name, _parse_pa
 
 CONFIG = load_config()
 
-Z_MAP = {
-    50: "Sn", 52: "Te", 54: "Xe", 56: "Ba", 58: "Ce", 60: "Nd", 62: "Sm", 64: "Gd",
-    66: "Dy", 68: "Er", 70: "Yb", 72: "Hf", 74: "W", 76: "Os", 78: "Pt", 80: "Hg", 82: "Pb"
-}
-
 def _run_npbos(command: list[str], timeout_sec: float=5.0) -> tuple[str, str, int]:
     """ run NPBOS programs and return IBM spectra as stdout, stderr, and return code """
     proc = None
@@ -74,7 +69,7 @@ def _evaluate_model(X_eval: torch.Tensor, X_eval_scaled: torch.Tensor, pattern: 
         p = int(X_eval[i, 1].item())
         n_nu = int(X_eval[i, 2].item())
         n_pi = int(X_eval[i, 3].item())
-        element = Z_MAP.get(p, "Sm")
+        element = CONFIG["elements"].get(p, "Sm")
         expt_spectra_n = expt_spectra.get((p, n))
 
         if expt_spectra_n is None or expt_spectra_n.size == 0:
@@ -168,7 +163,7 @@ def _save_spectra_to_csv(pattern: list[int], X_eval: torch.Tensor, X_eval_scaled
             p = int(x_eval[1].item())
             n_nu = int(x_eval[2].item())
             n_pi = int(x_eval[3].item())
-            element = Z_MAP.get(p, "Sm")
+            element = CONFIG["elements"].get(p, "Sm")
             with torch.no_grad():
                 outputs = model(x_eval_scaled.unsqueeze(0))
             pred_params = outputs.squeeze(0).numpy()

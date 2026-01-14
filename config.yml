@@ -45,3 +45,24 @@ training:
   lr_patience: 20
   beta_min: -0.40
   beta_max: 0.50
+# -----------------
+# 5. element mapping
+# -----------------
+elements:
+  50: "Sn"
+  52: "Te"
+  54: "Xe"
+  56: "Ba"
+  58: "Ce"
+  60: "Nd"
+  62: "Sm"
+  64: "Gd"
+  66: "Dy"
+  68: "Er"
+  70: "Yb"
+  72: "Hf"
+  74: "W"
+  76: "Os"
+  78: "Pt"
+  80: "Hg"
+  82: "Pb"

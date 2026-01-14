@@ -1,5 +1,4 @@
 from __future__ import annotations
-import math
 import torch
 
 def IBM2_PES(params: torch.Tensor, n_pi: torch.Tensor, n_nu: torch.Tensor, beta_f: torch.Tensor) -> torch.Tensor:
@@ -8,7 +7,7 @@ def IBM2_PES(params: torch.Tensor, n_pi: torch.Tensor, n_nu: torch.Tensor, beta_
     kappa = params[:, 1].unsqueeze(1)
     chi_pi = params[:, 2].unsqueeze(1)
     chi_nu = params[:, 3].unsqueeze(1)
-    beta_b = beta_f*3.0
+    beta_b = beta_f*4.0
 
     beta2 = beta_b**2
     deno1 = 1 + beta2
