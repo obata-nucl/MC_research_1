@@ -162,6 +162,7 @@ def _run_training():
     patterns = get_all_patterns(CONFIG["nn"]["nodes_options"], CONFIG["nn"]["layers_options"])
     num_patterns = len(patterns)
     try:
+        CONFIG["paths"]["results_dir"].mkdir(parents=True, exist_ok=True)
         torch.save({"min": x_min, "range": x_range}, CONFIG["paths"]["results_dir"] / "scaler.pt")
     except Exception as e:
         print(f"Error saving scaler: {e}")

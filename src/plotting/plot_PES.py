@@ -3,6 +3,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
+from pathlib import Path
+
 from src.data import get_boson_num, load_raw_HFB_energies
 from src.loader import load_eval_results
 from src.physics import IBM2_PES
@@ -10,6 +12,15 @@ from src.plotting.plot import save_fig
 from src.utils import load_config
 
 CONFIG = load_config()
+
+plt.rcParams["font.family"] = "serif"
+plt.rcParams["figure.dpi"] = 300
+plt.rcParams["font.size"] = 12
+
+_TRAINING_CFG = CONFIG.get("training", {})
+_BETA_MIN = _TRAINING_CFG.get("beta_min")
+_BETA_MAX = _TRAINING_CFG.get("beta_max")
+_BETA_POINTS = _TRAINING_CFG.get("beta_points", 200)
 
 def _calc_PES(params: np.ndarray, n_pi: int, n_nu: int, beta_f_arr: np.ndarray) -> np.ndarray:
     """ calculate PES for one nucleus with given N """
@@ -29,40 +40,112 @@ def _calc_PES(params: np.ndarray, n_pi: int, n_nu: int, beta_f_arr: np.ndarray) 
     # pes_tensor shape is (1, nbeta) -> return 1D numpy array
     return pes_tensor.squeeze(0).numpy()
 
-def _plot_n_PES(ax: plt.Axes, P:int, N: int, n_pi: int, n_nu: int, beta_f_arr: np.ndarray, params: np.ndarray, expt_PES: np.ndarray, element_name: str = "Sm") -> plt.Axes:
-    """ plot PES of one nucleus with given N """
-    # Use the same beta range as the experimental data for prediction
-    # Filter expt_PES to match training range if specified
-    if "beta_min" in CONFIG["training"] and "beta_max" in CONFIG["training"]:
-        b_min = CONFIG["training"]["beta_min"]
-        b_max = CONFIG["training"]["beta_max"]
-        mask = (expt_PES[:, 0] >= b_min) & (expt_PES[:, 0] <= b_max)
-        expt_PES = expt_PES[mask]
+def _prepare_pes_entry(z: int, n: int, params: np.ndarray, n_pi: int, n_nu: int, expt_curve: np.ndarray) -> dict | None:
+    if expt_curve is None or expt_curve.size == 0:
+        return None
 
-    if expt_PES.size == 0:
-        return ax
+    curve = np.asarray(expt_curve, dtype=float)
 
-    beta_min = expt_PES[:, 0].min()
-    beta_max = expt_PES[:, 0].max()
-    # Create a dense grid within the experimental range
-    beta_pred = np.linspace(beta_min, beta_max, 100)
-    
-    pred_PES = _calc_PES(params, n_pi, n_nu, beta_pred)
-    ax.plot(beta_pred, pred_PES, linestyle='-', color="black", label="IBM PES")
+    beta_min = _BETA_MIN if _BETA_MIN is not None else curve[:, 0].min()
+    beta_max = _BETA_MAX if _BETA_MAX is not None else curve[:, 0].max()
 
-    idx_min_calc = np.argmin(pred_PES)
-    ax.plot(beta_pred[idx_min_calc], pred_PES[idx_min_calc], 'ro', markersize=6)
+    mask = (curve[:, 0] >= beta_min) & (curve[:, 0] <= beta_max)
+    curve = curve[mask]
+    if curve.size == 0:
+        return None
 
-    ax.plot(expt_PES[:, 0], expt_PES[:, 1], linestyle="--", color="tab:orange", label="HFB PES")
-    idx_min_expt = np.argmin(expt_PES[:, 1])
-    ax.plot(expt_PES[idx_min_expt, 0], expt_PES[idx_min_expt, 1], 'bo', markersize=6)
-    mass_number = P + N
-    ax.set_title(rf"$^{{{mass_number}}}\mathrm{{{element_name}}}$ (Z={P})", fontsize=18)
-    ax.set_xlabel(r"$\beta$", fontsize=14)
-    ax.set_ylabel("Energy [MeV]", fontsize=14)
-    ax.tick_params(axis="both", which="major", labelsize=12)
-    ax.legend(loc="best", fontsize=12)
-    return ax
+    order = np.argsort(curve[:, 0])
+    beta_expt = curve[order, 0]
+    energy_expt = curve[order, 1]
+
+    beta_grid = np.linspace(beta_min, beta_max, _BETA_POINTS)
+
+    baseline_target = np.interp(0.0, beta_expt, energy_expt, left=np.nan, right=np.nan)
+    if np.isnan(baseline_target):
+        baseline_target = energy_expt[np.argmin(np.abs(beta_expt))]
+    energy_expt_shifted = energy_expt - baseline_target
+
+    target_interp = np.interp(beta_grid, beta_expt, energy_expt_shifted, left=np.nan, right=np.nan)
+
+    pred = _calc_PES(params, n_pi, n_nu, beta_grid)
+    zero_idx = np.argmin(np.abs(beta_grid))
+    baseline = pred[zero_idx]
+    pred = pred - baseline
+
+    if np.all(np.isnan(target_interp)):
+        return None
+
+    element_symbol = CONFIG["elements"].get(int(z), "X")
+    return {
+        "Z": int(z),
+        "N": int(n),
+        "beta": beta_grid,
+        "target": target_interp,
+        "pred": pred,
+        "element": element_symbol
+    }
+
+
+def _plot_pes_grid(z: int, pes_entries: list[dict], save_dir: Path) -> None:
+    pes_entries.sort(key=lambda item: item["N"])
+    total = len(pes_entries)
+    cols = int(np.ceil(np.sqrt(total)))
+    rows = int(np.ceil(total / cols))
+    cols = max(1, cols)
+    rows = max(1, rows)
+
+    base_w, base_h = 5.0, 4.0
+    fig, axes = plt.subplots(rows, cols, figsize=(base_w * cols, base_h * rows), sharex=True, sharey=True)
+
+    if total == 1:
+        axes_array = np.array([[axes]])
+    elif rows == 1:
+        axes_array = np.array([axes])
+    elif cols == 1:
+        axes_array = np.array([[ax] for ax in axes])
+    else:
+        axes_array = axes
+
+    axes_flat = axes_array.ravel()
+
+    for idx, (entry, ax) in enumerate(zip(pes_entries, axes_flat)):
+        beta = entry["beta"]
+        target = entry["target"]
+        pred = entry["pred"]
+
+        valid_target = np.isfinite(target)
+        if np.any(valid_target):
+            ax.plot(beta[valid_target], target[valid_target], linestyle="--", color="tab:orange", label="HFB PES")
+            min_target_idx = np.nanargmin(target[valid_target])
+            beta_target = beta[valid_target][min_target_idx]
+            energy_target = target[valid_target][min_target_idx]
+            ax.plot(beta_target, energy_target, 'bo', markersize=6)
+
+        ax.plot(beta, pred, linestyle="-", color="black", label="IBM PES")
+        min_pred_idx = np.nanargmin(pred)
+        ax.plot(beta[min_pred_idx], pred[min_pred_idx], 'ro', markersize=6)
+
+        mass_number = entry["Z"] + entry["N"]
+        symbol = entry["element"]
+        ax.set_title(rf"$^{{{mass_number}}}\mathrm{{{symbol}}}$", fontsize=18)
+        ax.tick_params(axis="both", which="major", labelsize=12)
+        if idx == 0:
+            ax.legend(loc="best", fontsize=12)
+
+    for ax in axes_flat[total:]:
+        ax.axis('off')
+
+    for ax in axes_array[-1, :]:
+        if not ax.get_visible():
+            continue
+        ax.set_xlabel(r"$\beta$", fontsize=14)
+    for ax in axes_array[:, 0]:
+        if not ax.get_visible():
+            continue
+        ax.set_ylabel("Energy [MeV]", fontsize=14)
+
+    fig.tight_layout()
+    save_fig(fig, "PES", save_dir)
 
 def main():
     # beta_f_arr is no longer fixed globally, but determined per nucleus based on expt data
@@ -83,59 +166,22 @@ def main():
             z_pred_data = pred_data[mask]
             
             Neutrons = z_pred_data[:, 0].astype(int)
-            element_name = CONFIG["elements"].get(int(z), "Sm")
             n_pi = get_boson_num(z)
             N_nu = [get_boson_num(int(n)) for n in Neutrons]
             
-            n_panels = len(Neutrons)
-            if n_panels == 0:
+            pes_entries: list[dict] = []
+            for i, (n, n_nu) in enumerate(zip(Neutrons, N_nu)):
+                expt_curve = expt_PES.get((z, n))
+                params = z_pred_data[i, 7:]
+                entry = _prepare_pes_entry(z, n, params, n_pi, n_nu, expt_curve)
+                if entry is not None:
+                    pes_entries.append(entry)
+
+            if not pes_entries:
                 continue
 
-            cols = int(np.ceil(np.sqrt(n_panels)))
-            rows = int(np.ceil(n_panels / cols))
-            
-            # handle case where cols or rows might be 0? (checked n_panels==0 above)
-            cols = max(1, cols)
-            rows = max(1, rows)
-
-            base_w, base_h = 5.0, 4.0
-            fig, axes = plt.subplots(rows, cols, figsize=(base_w * cols, base_h * rows), sharex=False, sharey=True)
-            
-            if n_panels == 1:
-                axes_flat = [axes]
-            else:
-                axes_flat = axes.ravel()
-
-            for i, (n, n_nu) in enumerate(zip(Neutrons, N_nu)):
-                expt_PES_n = expt_PES.get((z, n))
-                ax = axes_flat[i]
-                
-                if expt_PES_n is None:
-                    ax.text(0.5, 0.5, "No HFB Data", ha='center', va='center')
-                    continue
-
-                idx_beta0 = np.where(np.isclose(expt_PES_n[:, 0], 0.0))[0]
-                if idx_beta0.size == 0:
-                    idx_beta0 = np.argmin(np.abs(expt_PES_n[:, 0]))
-                
-                # Copy to avoid modifying shared cache
-                expt_PES_plot = expt_PES_n.copy()
-                e0 = expt_PES_n[idx_beta0[0], 1] if idx_beta0.size > 0 else expt_PES_n[idx_beta0, 1]
-                expt_PES_plot[:, 1] -= e0
-                
-                # params index starts from 7: [N, Z, E2, E4, E6, E0, R, eps, kappa, chi_n]
-                params = z_pred_data[i, 7:]
-                
-                # beta_f_arr param is dummy/unused in modified _plot_n_PES logic (it builds linspace)
-                _plot_n_PES(ax, z, n, n_pi, n_nu, None, params, expt_PES_plot, element_name=element_name)
-
-            # Hide unused axes
-            for j in range(i + 1, len(axes_flat)):
-                axes_flat[j].axis('off')
-
-            fig.tight_layout()
             save_path = CONFIG["paths"]["results_dir"] / "images" / pattern_name / str(z)
-            save_fig(fig, "PES", save_path)
+            _plot_pes_grid(z, pes_entries, save_path)
     return
 
 if __name__ == "__main__":
