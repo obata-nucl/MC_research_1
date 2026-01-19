@@ -55,8 +55,8 @@ def _plot_tendency(eval_summary: pd.DataFrame, metric: str = "total_RMSE") -> pl
     pivot = pivot.sort_index(axis=0).sort_index(axis=1)
     
     # Fill gaps in X-axis (total_nodes) to ensure linear scale
-    # We assume step is 8 based on node options [8, 16, 32, 64]
-    step_nodes = 8
+    # We assume step is 4 based on node options being multiples of 4
+    step_nodes = 4
     min_nodes = pivot.columns.min()
     max_nodes = pivot.columns.max()
     
