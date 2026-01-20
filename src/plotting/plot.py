@@ -170,6 +170,20 @@ def main():
                 axis.set_ylim(0.0, spectra_limit)
             save_fig(fig_spectra, "spectra_common_scale", save_dir)
 
+            g_level_labels = ["2+_1", "4+_1", "6+_1"]
+            g_markers = ['o', 's', '^']
+            fig_spectra_g, _ = _plot_spectra(
+                z_pred_data,
+                z_expt_data,
+                element_name=element_name,
+                level_labels=g_level_labels,
+                markers=g_markers
+            )
+            save_fig(fig_spectra_g, "spectra_g", save_dir, close_fig=False)
+            for axis in fig_spectra_g.axes:
+                axis.set_ylim(0.0, spectra_limit)
+            save_fig(fig_spectra_g, "spectra_g_common_scale", save_dir)
+
             fig_ratio = _plot_ratio(z_pred_data, z_expt_data, element_name=element_name)
             save_fig(fig_ratio, "ratio", save_dir)
 
