@@ -74,7 +74,7 @@ def _train_worker(args):
 
     with open(loss_path, mode='w', newline='') as f:
         writer_csv = csv.writer(f)
-        writer_csv.writerow(["epoch", "train_MSE", "val_MSE", "train_RMSE", "val_RMSE", "lr"])
+        writer_csv.writerow(["epoch", "train_MAE", "val_MAE","lr"])
         try:
             for epoch in range(num_epochs):
                 model.train()
@@ -125,8 +125,6 @@ def _train_worker(args):
                     epoch + 1,
                     f"{train_loss:.8f}",
                     f"{val_loss:.8f}",
-                    f"{math.sqrt(max(train_loss, 0.0)):.8f}",
-                    f"{math.sqrt(max(val_loss, 0.0)):.8f}",
                     f"{current_lr:.6g}",
                 ])
                 f.flush()

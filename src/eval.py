@@ -8,7 +8,7 @@ import subprocess
 import torch
 
 from src.data import load_eval_dataset, load_raw_expt_spectra
-from src.losses import calc_sse
+from src.losses import calc_sae
 from src.model import load_NN_model
 from src.loader import load_eval_summary
 from src.utils import load_config, get_all_patterns, _pattern_to_name, _parse_pattern_name
@@ -61,7 +61,7 @@ def _evaluate_model(X_eval: torch.Tensor, X_eval_scaled: torch.Tensor, pattern: 
     model.eval()
 
     num_eval_X = len(X_eval)
-    energy_RMSE, ratio_RMSE = 0.0, 0.0
+    energy_MAE, ratio_MAE = 0.0, 0.0
     energy_count_total, ratio_count = 0, 0
 
     for i in range(num_eval_X):
@@ -97,29 +97,29 @@ def _evaluate_model(X_eval: torch.Tensor, X_eval_scaled: torch.Tensor, pattern: 
             print(f"Error parsing output: {stdout} - {e}")
             continue
 
-        energy_sse, energy_count = calc_sse(pred_energies, expt_spectra_n)
-        energy_RMSE += energy_sse
+        energy_sae, energy_count = calc_sae(pred_energies, expt_spectra_n)
+        energy_MAE += energy_sae
         energy_count_total += energy_count
         # ratio evaluation: require only first two levels to exist (no need for strict length equality)
         if len(pred_energies) == 4 and pred_energies[0] != 0 and expt_spectra_n[0] != 0:
-            ratio_RMSE += ((pred_energies[1] / pred_energies[0]) - expt_spectra_n[4]) ** 2
+            ratio_MAE += abs((pred_energies[1] / pred_energies[0]) - expt_spectra_n[4])
             ratio_count += 1
-    energy_RMSE = np.sqrt(energy_RMSE / energy_count_total) if energy_count_total > 0 else float('inf')
-    ratio_RMSE = np.sqrt(ratio_RMSE / ratio_count) if ratio_count > 0 else float('inf')
-    return energy_RMSE, ratio_RMSE
+    energy_MAE = (energy_MAE / energy_count_total) if energy_count_total > 0 else float('inf')
+    ratio_MAE = (ratio_MAE / ratio_count) if ratio_count > 0 else float('inf')
+    return energy_MAE, ratio_MAE
 
-def _save_rmse_to_csv(patterns: list[list[int]], X_eval: torch.Tensor, X_eval_scaled: torch.Tensor, expt_spectra: dict[tuple[int, int], np.ndarray]) -> None:
-    """ save RMSE results to .csv file """
+def _save_mae_to_csv(patterns: list[list[int]], X_eval: torch.Tensor, X_eval_scaled: torch.Tensor, expt_spectra: dict[tuple[int, int], np.ndarray]) -> None:
+    """ save MAE results to .csv file """
     eval_summary = []
     calc_count = 0
     for pattern in patterns:
         try:
-            energy_RMSE, ratio_RMSE = _evaluate_model(X_eval, X_eval_scaled, pattern, expt_spectra)
+            energy_MAE, ratio_MAE = _evaluate_model(X_eval, X_eval_scaled, pattern, expt_spectra)
             eval_summary.append(
                 {
                     "pattern": _pattern_to_name(pattern),
-                    "energy_RMSE": energy_RMSE,
-                    "ratio_RMSE": ratio_RMSE,
+                    "energy_MAE": energy_MAE,
+                    "ratio_MAE": ratio_MAE,
                 }
             )
             calc_count += 1
@@ -128,19 +128,19 @@ def _save_rmse_to_csv(patterns: list[list[int]], X_eval: torch.Tensor, X_eval_sc
         except Exception as e:
             print(f"Error evaluating pattern {pattern}: {e}")
             continue
-    # Sort CSV lines by ratio_RMSE ascending as requested
-    eval_summary.sort(key=lambda x: x["ratio_RMSE"])
+    # Sort CSV lines by ratio_MAE ascending as requested
+    eval_summary.sort(key=lambda x: x["ratio_MAE"])
     summary_dir = CONFIG["paths"]["results_dir"] / "evaluation"
     summary_dir.mkdir(parents=True, exist_ok=True)
     summary_path = summary_dir / "eval_summary.csv"
     with open(summary_path, "w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["pattern", "energy_RMSE", "ratio_RMSE"])
+        writer.writerow(["pattern", "energy_MAE", "ratio_MAE"])
         for record in eval_summary:
             writer.writerow([
                 record["pattern"],
-                f"{record['energy_RMSE']:.6f}",
-                f"{record['ratio_RMSE']:.6f}",
+                f"{record['energy_MAE']:.6f}",
+                f"{record['ratio_MAE']:.6f}",
             ])
     return
 
@@ -211,9 +211,9 @@ def _sort_by(data: pd.DataFrame, key: str) -> pd.DataFrame:
     return data.sort_values(by=key)
 
 def find_best_training_model(patterns: list[list[int]]) -> tuple[list[int], float]:
-    """ find the pattern with the minimum validation RMSE from training logs """
+    """ find the pattern with the minimum validation MAE from training logs """
     best_pattern = None
-    min_val_rmse = float('inf')
+    min_val_mae = float('inf')
     
     for pattern in patterns:
         pattern_name = _pattern_to_name(pattern)
@@ -222,17 +222,17 @@ def find_best_training_model(patterns: list[list[int]]) -> tuple[list[int], floa
             continue
         try:
             df = pd.read_csv(loss_path)
-            if "val_RMSE" not in df.columns:
+            if "val_MAE" not in df.columns:
                 continue
-            # Get the minimum val_RMSE recorded during training
-            val_rmse = df["val_RMSE"].min()
-            if val_rmse < min_val_rmse:
-                min_val_rmse = val_rmse
+            # Get the minimum val_MAE recorded during training
+            val_mae = df["val_MAE"].min()
+            if val_mae < min_val_mae:
+                min_val_mae = val_mae
                 best_pattern = pattern
         except Exception:
             continue
             
-    return best_pattern, min_val_rmse
+    return best_pattern, min_val_mae
 
 def main():
     X_eval, X_eval_scaled = load_eval_dataset("eval_dataset")
@@ -247,32 +247,32 @@ def main():
     patterns = get_all_patterns(CONFIG["nn"]["nodes_options"], CONFIG["nn"]["layers_options"])
     
     print("Evaluating all models...")
-    _save_rmse_to_csv(patterns, X_eval, X_eval_scaled, expt_spectra)
+    _save_mae_to_csv(patterns, X_eval, X_eval_scaled, expt_spectra)
 
     eval_summary = load_eval_summary()
     
-    # NPBOS best 2 models (Energy RMSE & Ratio RMSE)
-    best_energy_row = eval_summary.loc[eval_summary["energy_RMSE"].idxmin()]
-    best_ratio_row = eval_summary.loc[eval_summary["ratio_RMSE"].idxmin()]
+    # NPBOS best 2 models (Energy MAE & Ratio MAE)
+    best_energy_row = eval_summary.loc[eval_summary["energy_MAE"].idxmin()]
+    best_ratio_row = eval_summary.loc[eval_summary["ratio_MAE"].idxmin()]
 
-    # Best total RMSE (Energy + Ratio)
+    # Best total MAE (Energy + Ratio)
     # Note: Depending on the scale of energy vs ratio, you might want to normalize them or use a weighted sum.
     # Here we simply sum them as requested.
-    eval_summary["total_RMSE"] = eval_summary["energy_RMSE"] + eval_summary["ratio_RMSE"]
-    best_total_row = eval_summary.loc[eval_summary["total_RMSE"].idxmin()]
+    eval_summary["total_MAE"] = eval_summary["energy_MAE"] + eval_summary["ratio_MAE"]
+    best_total_row = eval_summary.loc[eval_summary["total_MAE"].idxmin()]
     
     pattern_energy_best = _parse_pattern_name(best_energy_row["pattern"])
     pattern_ratio_best = _parse_pattern_name(best_ratio_row["pattern"])
     pattern_total_best = _parse_pattern_name(best_total_row["pattern"])
     
-    print(f"Best NPBOS Energy RMSE: {best_energy_row['pattern']} (RMSE={best_energy_row['energy_RMSE']})")
-    print(f"Best NPBOS Ratio RMSE: {best_ratio_row['pattern']} (RMSE={best_ratio_row['ratio_RMSE']})")
-    print(f"Best NPBOS total RMSE: {best_total_row['pattern']} (RMSE={best_total_row['total_RMSE']})")
+    print(f"Best NPBOS Energy MAE: {best_energy_row['pattern']} (MAE={best_energy_row['energy_MAE']})")
+    print(f"Best NPBOS Ratio MAE: {best_ratio_row['pattern']} (MAE={best_ratio_row['ratio_MAE']})")
+    print(f"Best NPBOS total MAE: {best_total_row['pattern']} (MAE={best_total_row['total_MAE']})")
 
     # PES Training best model
-    pattern_train_best, train_rmse = find_best_training_model(patterns)
+    pattern_train_best, train_mae = find_best_training_model(patterns)
     if pattern_train_best:
-        print(f"Best PES Training RMSE: {_pattern_to_name(pattern_train_best)} (RMSE={train_rmse})")
+        print(f"Best PES Training MAE: {_pattern_to_name(pattern_train_best)} (MAE={train_mae})")
     else:
         print("No training logs found to determine best PES model.")
 

@@ -23,30 +23,30 @@ def _load_loss_csv(csv_path: Path) -> np.ndarray:
     if data.ndim == 1:
         data = data[np.newaxis, :]
 
-    expected_cols = 6
+    expected_cols = 4
     if data.shape[1] < expected_cols:
         raise ValueError(f"Expected at least {expected_cols} columns in {csv_path}, got {data.shape[1]}")
 
     return data
 
 def _plot_learning_curve(data: np.ndarray, title: str) -> plt.Figure:
-    """ plot RMSE and learning rate over epochs
+    """ plot MAE and learning rate over epochs
 
-        data = [epoch, train_MSE, val_MSE, train_RMSE, val_RMSE, lr]
+        data = [epoch, train_MAE, val_MAE, lr]
     """
     epochs = data[:, 0]
-    train_rmse = data[:, 3]
-    val_rmse = data[:, 4]
-    lrs = data[:, 5]
+    train_mae = data[:, 1]
+    val_mae = data[:, 2]
+    lrs = data[:, 3]
 
     fig, ax1 = plt.subplots(figsize=(9, 5))
     ax1.set_title(f"Learning Curve — {title}", fontsize=18)
     ax1.set_xlabel("Epoch", fontsize=14)
-    ax1.set_ylabel("RMSE", fontsize=14)
+    ax1.set_ylabel("MAE", fontsize=14)
     ax1.grid(True, alpha=0.3, linestyle=":")
 
-    ax1.plot(epochs, train_rmse, label="train_RMSE", color="#1f77b4")
-    ax1.plot(epochs, val_rmse, label="val_RMSE", color="#ff7f0e")
+    ax1.plot(epochs, train_mae, label="train_MAE", color="#1f77b4")
+    ax1.plot(epochs, val_mae, label="val_MAE", color="#ff7f0e")
     ax1.legend(loc="best")
 
     ax2 = ax1.twinx()

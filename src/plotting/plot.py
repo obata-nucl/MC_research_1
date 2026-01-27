@@ -92,7 +92,7 @@ def _plot_ratio(pred_data: np.ndarray, expt_data: dict[tuple[int, int], np.ndarr
         fig.tight_layout()
     return fig
 
-def _plot_params(pred_data: np.ndarray, element_name: str = "", labels: dict[str, str] = {"eps": r"$\varepsilon$", "kappa": r"$\kappa$", "chi_pi": r"$\chi_\pi$", "chi_n": r"$\chi_\nu$"}, lims: dict[str, tuple[float, float]] = None) -> plt.Figure:
+def _plot_params(pred_data: np.ndarray, element_name: str = "", labels: dict[str, str] = {"eps": r"$\varepsilon$", "kappa": r"$\kappa$", "chi_pi": r"$\chi_\pi$", "chi_n": r"$\chi_\nu$"}, lims: dict[str, tuple[float, float]] = None, combined: bool = False) -> plt.Figure:
     keys = list(labels.keys())
     cols = 2
     rows = int(np.ceil(len(keys) / cols))
@@ -100,15 +100,51 @@ def _plot_params(pred_data: np.ndarray, element_name: str = "", labels: dict[str
     axes = np.atleast_2d(axes)
     axes_flat = axes.flatten()
 
-    neutron_numbers = pred_data[:, 0].astype(int)
+    colors = ["blue", "red", "green"]
+    line_styles = ["-", "--", ":"]
+    marker_styles = ["o", "s", "^"]
+
+    unique_Zs = np.sort(np.unique(pred_data[:, 1].astype(int)))
 
     for i, param_name in enumerate(keys):
         ax = axes_flat[i]
-        values = pred_data[:, i + 7]
         label = labels[param_name]
-        ax.plot(neutron_numbers, values, "o-", color="black", linewidth=1.8)
+        
+        if combined:
+            for j, z in enumerate(unique_Zs):
+                mask = (pred_data[:, 1].astype(int) == z)
+                z_data = pred_data[mask]
+                sort_idx = np.argsort(z_data[:, 0])
+                sorted_z_data = z_data[sort_idx]
+                
+                n_nums = sorted_z_data[:, 0].astype(int)
+                vals = sorted_z_data[:, i + 7]
+                
+                symbol = CONFIG["elements"].get(int(z), f"Z={z}")
+                
+                # Apply requested styles for Nd, Sm, Gd
+                if int(z) == 60: # Nd
+                    c, ls, mk = "blue", "-", "o"
+                elif int(z) == 62: # Sm
+                    c, ls, mk = "red", "--", "s"
+                elif int(z) == 64: # Gd
+                    c, ls, mk = "green", ":", "^"
+                else:
+                    c = colors[j % len(colors)]
+                    ls = line_styles[j % len(line_styles)]
+                    mk = marker_styles[j % len(marker_styles)]
+
+                ax.plot(n_nums, vals, marker=mk, linestyle=ls, 
+                        color=c, label=symbol, alpha=0.5, markersize=6)
+            ax.legend(loc="best", fontsize=10)
+        else:
+            # Original style for single Z
+            neutron_numbers = pred_data[:, 0].astype(int)
+            values = pred_data[:, i + 7]
+            ax.plot(neutron_numbers, values, "o-", color="black", linewidth=1.8)
+
         ax.set_title(f"Evolution of {label}", fontsize=16)
-        ax.set_xlabel("Neutron Number", fontsize=14)
+        ax.set_xlabel("Neutron Number N", fontsize=14)
         ax.set_ylabel(label, fontsize=14)
         if lims is not None and param_name in lims:
             ax.set_ylim(lims[param_name])
@@ -119,7 +155,7 @@ def _plot_params(pred_data: np.ndarray, element_name: str = "", labels: dict[str
     for j in range(len(keys), len(axes_flat)):
         axes_flat[j].axis('off')
 
-    if element_name:
+    if not combined and element_name:
         fig.suptitle(f"{element_name} Parameters", fontsize=18)
         fig.tight_layout(rect=(0, 0, 1, 0.97))
     else:
@@ -195,6 +231,21 @@ def main():
             }
             fig_params = _plot_params(z_pred_data, element_name=element_name, lims=param_lims)
             save_fig(fig_params, "params", save_dir)
+
+        # Plot parameters for all elements together (Nd, Sm, Gd)
+        target_Zs = [60, 62, 64]
+        mask = np.isin(pred_data[:, 1].astype(int), target_Zs)
+        if np.any(mask):
+            filtered_pred_data = pred_data[mask]
+            param_lims_combined = {
+                "eps": (0.0, 3.5),
+                "kappa": (-1.0, 0.0),
+                "chi_pi": (-2.0, 0.0),
+                "chi_n": (-2.0, 0.0)
+            }
+            fig_params_all = _plot_params(filtered_pred_data, lims=param_lims_combined, combined=True)
+            save_dir_combined = CONFIG["paths"]["results_dir"] / "images" / pattern_name
+            save_fig(fig_params_all, "params_all", save_dir_combined)
     return
 
 if __name__ == "__main__":
